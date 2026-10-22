@@ -17,3 +17,7 @@ body{background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef) fixed;min-he
 .t-success{background:#d8f2e3;color:#2e7a54}.t-danger{background:#fde3ec;color:#b0486b}.t-info{background:#e1ecfd;color:#3c6fb0}.t-warning{background:#ffeccf;color:#a8701f}
 .progress{background:#ece7f7;border-radius:6px}.progress-bar{background:linear-gradient(90deg,#b9a8e0,#8fd0b0)}
 .t-reminder{background:#ece6fb;color:#5f4a96}.toast{min-width:300px}
+.toast.show{animation:tin .65s cubic-bezier(.22,1,.36,1) both}
+@keyframes tin{from{transform:translateX(120%);opacity:0}to{transform:none;opacity:1}}
+.toast.out{overflow:hidden;animation:tout .6s cubic-bezier(.5,0,.75,.4) forwards}
+@keyframes tout{0%{transform:none;opacity:1;height:var(--h)}60%{transform:translateX(120%);opacity:0;height:var(--h)}100%{transform:translateX(120%);opacity:0;height:0;margin-bottom:0}}
