@@ -9,6 +9,7 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link href="shared.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 #loader{position:fixed;inset:0;z-index:3000;background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .5s}
@@ -22,7 +23,7 @@
 .ic{position:relative;width:40px;height:40px;border-radius:14px;background:#e7f4f1;color:#3b8f84;border:0;font-size:18px;padding:0}
 .ic .badge{position:absolute;top:-5px;right:-5px;background:#f0788f}
 .av{width:40px;height:40px;border-radius:50%;border:2px solid #b9a8e0;background:#f3eefc;color:var(--pu);font-weight:700}
-.note-i{padding:9px 10px;border-radius:12px;font-size:14px;display:flex;align-items:center;gap:8px}.note-i:nth-child(odd){background:#f8f5fd}
+.note-i{padding:9px 10px;border-radius:12px;font-size:14px;display:flex;align-items:center;gap:8px}.note-i:hover{background:#f8f5fd}#notes{max-height:70vh;overflow-y:auto}
 .side{position:fixed;top:60px;left:0;bottom:0;width:200px;padding:18px 14px;background:rgba(255,255,255,.35);backdrop-filter:blur(10px);z-index:10;--bs-nav-pills-link-active-bg:#fff;--bs-nav-pills-link-active-color:var(--pu)}
 .side .nav-link{color:var(--mut);font-weight:500;border-radius:14px;padding:12px 14px;margin-bottom:8px;text-align:left}
 .side .nav-link.active{box-shadow:0 4px 14px rgba(126,106,168,.15);font-weight:600}
@@ -49,6 +50,11 @@ main{margin:78px 22px 24px 222px;max-width:1300px}
 .table td input{border:0;background:#eef3fd;border-radius:8px}
 .empty{text-align:center;color:var(--mut);padding:28px}
 .modal-content{border:0;border-radius:1.25rem}
+.hnav{display:flex;align-items:center;gap:6px}.hnav button{border:0;background:none;border-radius:12px;padding:8px 14px;font-weight:600;color:var(--mut)}
+.hnav button.on{background:#fff;color:var(--pu);box-shadow:0 3px 10px rgba(126,106,168,.15)}#crumb{color:var(--mut);margin-left:6px;font-weight:500}
+.s4{background:#ece9f3;color:#7b7494}.s5{background:#ffeccf;color:#a8701f}.s6{background:#ece6fb;color:#6a55a0}.kp b{font-size:28px}
+@media(max-width:800px){.hnav button{padding:6px 10px;font-size:14px}#crumb{display:none}}
+@media(max-width:520px){.hnav button span{display:none}}
 .mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 .mh{text-align:center;font-weight:700;font-size:13px;color:#6b6585;padding:6px 0}.mh.cn{color:#f08a3c}
 .mc{border:2px solid transparent;border-radius:14px;background:#fff;min-height:82px;padding:6px 4px;text-align:center;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink);transition:.15s}
@@ -66,7 +72,7 @@ main{margin:78px 22px 24px 222px;max-width:1300px}
 <div id="loader"><div class="logo">✦ STUDY PLANNER</div><div class="ld"><u></u></div></div>
 
 <nav class="glass fixed-top px-3 d-flex justify-content-between align-items-center">
-  <div class="d-flex align-items-center gap-2 fw-semibold text-pu"><i class="bi bi-grid-1x2-fill"></i> Quản lý <span id="crumb" class="text-secondary fw-normal"></span></div>
+  <div class="hnav"><button data-hn="manage"><i class="bi bi-grid-1x2-fill"></i> <span>Quản lý</span></button><button data-hn="stats"><i class="bi bi-bar-chart-line-fill"></i> <span>Thống kê</span></button><span id="crumb"></span></div>
   <div class="d-flex align-items-center gap-2">
     <button class="btn ic" data-act="cal" title="Việc còn lại trong tuần"><i class="bi bi-calendar-week"></i><span id="bWeek" class="badge rounded-pill d-none"></span></button>
     <div class="dropdown">
@@ -163,8 +169,8 @@ const vn = s => { const [a, b, c] = s.split('-'); return `${c}/${b}/${a}` };
 const dow = s => { const g = P(s).getDay(); return g ? 'Thứ ' + (g + 1) : 'Chủ nhật' };
 const tm = s => s ? (+s.slice(0, 2)) * 60 + (+s.slice(3, 5)) : null;
 const ST = { todo: 'Chưa làm', doing: 'Đang làm', done: 'Đã xong', skip: 'Bỏ qua' };
-const TABS = { today: 'Hôm nay', week: 'Tuần này', month: 'Tháng này', list: 'Checklist' };
-const S = { mo: new Date(new Date().getFullYear(), new Date().getMonth(), 1), day: null, after: null, reopenDay: false, user: null, tasks: [], subs: [], trash: [], tab: 'today', ws: mon(new Date()), f: '', m: null, imp: [], back: false, openSubs: false, draft: null };
+const TABS = { today: 'Hôm nay', week: 'Tuần này', month: 'Tháng này', list: 'Checklist', stats: 'Thống kê' };
+const S = { mo: new Date(new Date().getFullYear(), new Date().getMonth(), 1), day: null, after: null, reopenDay: false, user: null, tasks: [], subs: [], log: [], logDate: '', fired: new Set(), ch: [], sd: null, sr: '30', last: 'today', tab: 'today', ws: mon(new Date()), f: '', m: null, imp: [], back: false, openSubs: false, draft: null };
 const mTask = new bootstrap.Modal('#mTask'), mPw = new bootstrap.Modal('#mPw'), mSubs = new bootstrap.Modal('#mSubs'), mImp = new bootstrap.Modal('#mImp');
 const mDay = new bootstrap.Modal('#mDay');
 
@@ -179,6 +185,20 @@ const bar = p => `<div class="progress" style="height:8px"><div class="progress-
 const PAL = [['#e1ecfd', '#3c6fb0'], ['#fde3ec', '#b0486b'], ['#d8f2e3', '#2e7a54'], ['#ffeccf', '#a8701f'], ['#ece6fb', '#6a55a0'], ['#dff3f5', '#2c7f8a']];
 const chip = n => { if (!n) return ''; let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 97; const p = PAL[h % PAL.length]; return `<span class="sbj" style="background:${p[0]};color:${p[1]}">${esc(n)}</span>` };
 const actBtns = td => `<button class="btn btn-main" data-act="add" data-id="${td}"><i class="bi bi-plus-lg"></i> Thêm việc</button><button class="btn btn-soft" data-act="imp"><i class="bi bi-file-earmark-excel"></i> Nhập Excel</button>`;
+
+/* ---------- Nhật ký thông báo: lưu theo ngày, qua ngày là xóa sạch ---------- */
+const LK = () => 'sp_log_' + S.user.id;
+const nowHM = () => { const n = new Date(); return pad(n.getHours()) + ':' + pad(n.getMinutes()) };
+function loadLog() {
+  let o = null; try { o = JSON.parse(localStorage.getItem(LK())) } catch { }
+  const td = iso(new Date()); if (!o || o.d !== td) o = { d: td, items: [], fired: [] };
+  S.log = o.items; S.logDate = o.d; S.fired = new Set(o.fired);
+}
+function saveLog() { try { localStorage.setItem(LK(), JSON.stringify({ d: S.logDate, items: S.log.slice(0, 60), fired: [...S.fired] })) } catch { } }
+function dayRoll() { const td = iso(new Date()); if (S.logDate !== td) { S.log = []; S.fired = new Set(); S.logDate = td; saveLog() } }
+function logAdd(x) { dayRoll(); S.log.unshift({ at: nowHM(), ...x }); S.log = S.log.slice(0, 60); saveLog(); head() }
+const TI = { reminder: 'bell-fill', warning: 'exclamation-triangle-fill', info: 'info-circle-fill', success: 'check-circle-fill', danger: 'x-circle-fill' };
+function notify(msg, type = 'info', o = {}) { toast(msg, type, o); logAdd({ icon: TI[type], text: (o.title ? o.title + ' · ' : '') + msg }) }
 
 /* ---------- Thông báo (chuông) ---------- */
 function notes() {
@@ -196,14 +216,16 @@ function notes() {
 }
 const badge = (s, n) => { const e = $(s); e.textContent = n; e.classList.toggle('d-none', !n) };
 function head() {
-  S.trash = S.trash.filter(x => x.exp > Date.now());
+  dayRoll();
   const n = notes(), m = mon(new Date()), cw = stat(S.tasks.filter(t => t.date >= iso(m) && t.date <= iso(add(m, 6))));
-  badge('#bWeek', cw.l); badge('#bBell', n.length + S.trash.length);
+  badge('#bWeek', cw.l); badge('#bBell', n.length + S.log.length);
+  if (S.tab !== 'stats') S.last = S.tab;
   const row = x => `<div class="note-i"><i class="bi bi-${x[0]} text-pu"></i><span class="flex-grow-1">${esc(x[1])}</span></div>`;
-  const tr = S.trash.map(x => `<div class="note-i"><i class="bi bi-trash3 text-danger"></i><span class="flex-grow-1">Đã xóa “${esc(x.task.title)}”</span><button class="btn btn-sm btn-soft" data-act="undo" data-id="${x.task.id}">Hoàn tác</button></div>`).join('');
-  $('#notes').innerHTML = (tr + n.map(row).join('')) || '<div class="note-i text-secondary">Không có thông báo mới 🎉</div>';
-  $('#crumb').textContent = '/ ' + TABS[S.tab];
+  const lg = S.log.map(x => `<div class="note-i"><i class="bi bi-${x.task ? 'trash3 text-danger' : x.icon + ' text-pu'}"></i><span class="flex-grow-1">${esc(x.text)}<small class="text-secondary d-block">${x.at}</small></span>${x.task ? `<button class="btn btn-sm btn-soft" data-act="undo" data-id="${x.task.id}">Hoàn tác</button>` : ''}</div>`).join('');
+  $('#notes').innerHTML = (n.length ? '<div class="small fw-semibold text-secondary px-2 pb-1">CẦN CHÚ Ý</div>' + n.map(row).join('') : '') + (lg ? '<div class="small fw-semibold text-secondary px-2 py-1 mt-1">HÔM NAY · tự xóa sạch khi qua ngày</div>' + lg : '') || '<div class="note-i text-secondary">Không có thông báo mới 🎉</div>';
+  $('#crumb').textContent = S.tab === 'stats' ? '' : '/ ' + TABS[S.tab];
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === S.tab));
+  document.querySelectorAll('[data-hn]').forEach(b => b.classList.toggle('on', (b.dataset.hn === 'stats') === (S.tab === 'stats')));
 }
 
 /* ---------- Giao diện các tab ---------- */
@@ -262,7 +284,43 @@ function drawDay() {
 <div class="fw-semibold">${esc(t.title)}</div><div>${chip(t.subject)}</div>${t.note ? `<small class="text-secondary d-block mt-1"><i class="bi bi-sticky me-1"></i>${esc(t.note)}</small>` : ''}
 <div class="text-end mt-2"><button class="btn btn-sm btn-soft" data-act="dayedit" data-id="${t.id}"><i class="bi bi-pencil me-1"></i>Sửa</button></div></div>`).join('') : '<div class="empty"><i class="bi bi-emoji-smile fs-2 d-block"></i>Ngày này chưa có việc nào ✨</div>';
 }
-function render() { $('#view').innerHTML = S.tab === 'today' ? vToday() : S.tab === 'week' ? vWeek() : S.tab === 'month' ? vMonth() : vList(); head(); if ($('#mDay').classList.contains('show')) drawDay() }
+const SCOL = { todo: '#f4a9c0', doing: '#f5cd8a', done: '#8fd0b0', skip: '#c9c3dc' };
+const mins = t => { const b = tm(t.t_start), e = tm(t.t_end); return b != null && e != null && e > b ? e - b : 0 };
+const hm = m => m ? `${Math.floor(m / 60)}g ${pad(m % 60)}p` : '0g';
+const SR = { 7: '7 ngày', 30: '30 ngày', 90: '90 ngày', month: 'Tháng này' };
+function vStats() {
+  const td = new Date(), tds = iso(td); let from, to = tds;
+  if (S.sr === 'month') { from = iso(new Date(td.getFullYear(), td.getMonth(), 1)); to = iso(new Date(td.getFullYear(), td.getMonth() + 1, 0)) } else from = iso(add(td, -(+S.sr - 1)));
+  const a = S.tasks.filter(t => t.date >= from && t.date <= to), keys = Object.keys(ST);
+  const cnt = k => a.filter(t => t.status === k).length, over = a.filter(t => t.date < tds && open_(t)), s = stat(a);
+  const dm = a.filter(t => t.status === 'done').reduce((x, t) => x + mins(t), 0);
+  const dd = new Set(S.tasks.filter(t => t.status === 'done').map(t => t.date)); let st = 0, c = new Date(); if (!dd.has(iso(c))) c = add(c, -1); while (dd.has(iso(c))) { st++; c = add(c, -1) }
+  const days = []; for (let d = P(from); iso(d) <= to; d = add(d, 1)) days.push(iso(d));
+  S.sd = a.length ? { days, per: keys.map(k => days.map(d => a.filter(t => t.date === d && t.status === k).length)), cnt: keys.map(cnt) } : null;
+  const g = {}; a.forEach(t => { const k = t.subject || '— Không nhóm —'; (g[k] = g[k] || []).push(t) });
+  const rows = Object.entries(g).map(([k, v]) => ({ k, v, n: v.length, p: stat(v).p, m: v.filter(t => t.status === 'done').reduce((x, t) => x + mins(t), 0) })).sort((x, y) => y.n - x.n);
+  const bad = a.filter(t => t.status === 'skip' || (t.date < tds && open_(t))).sort((x, y) => y.date.localeCompare(x.date)).slice(0, 15);
+  const kp = (ic, lab, val, cls) => `<div class="col-6 col-md-4 col-xl-2"><div class="stat kp ${cls}"><small><i class="bi bi-${ic} me-1"></i>${lab}</small><b>${val}</b></div></div>`;
+  const cn = (v, k) => v.filter(t => t.status === k).length;
+  return `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h4 class="m-0 text-pu"><i class="bi bi-bar-chart-line me-2"></i>Thống kê học tập</h4>
+<div class="btn-group">${Object.entries(SR).map(([k, v]) => `<button class="btn ${S.sr == k ? 'btn-main' : 'btn-soft'}" data-act="sr" data-id="${k}">${v}</button>`).join('')}</div></div>
+<div class="row g-3 mb-3">${kp('graph-up-arrow', 'Hoàn thành', s.p + '%', 's2')}${kp('check2-circle', 'Đã xong', cnt('done'), 's1')}${kp('skip-forward-circle', 'Bỏ qua', cnt('skip'), 's4')}${kp('exclamation-circle', 'Quá hạn', over.length, 's3')}${kp('clock-history', 'Giờ học', hm(dm), 's5')}${kp('fire', 'Chuỗi ngày học', st + ' ngày', 's6')}</div>
+${a.length ? `<div class="row g-3 mb-3"><div class="col-lg-4"><div class="card p-3 h-100"><h6 class="text-secondary">Tỷ lệ trạng thái</h6><div style="height:270px"><canvas id="cStatus"></canvas></div></div></div>
+<div class="col-lg-8"><div class="card p-3 h-100"><h6 class="text-secondary">Mức độ học theo ngày</h6><div style="height:270px"><canvas id="cDay"></canvas></div></div></div></div>
+<div class="row g-3"><div class="col-lg-7"><div class="card p-3 h-100"><h6 class="text-secondary">Theo nhóm môn</h6><div class="table-responsive"><table class="table align-middle mb-0"><thead class="thp"><tr><th>Nhóm môn</th><th>Tổng</th><th>Xong</th><th>Bỏ qua</th><th style="min-width:120px">Hoàn thành</th><th>Giờ học</th></tr></thead><tbody>
+${rows.map(r => `<tr><td>${r.k.startsWith('—') ? `<span class="text-secondary">${r.k}</span>` : chip(r.k)}</td><td>${r.n}</td><td>${cn(r.v, 'done')}</td><td>${cn(r.v, 'skip')}</td><td>${bar(r.p)}<small class="text-secondary">${r.p}%</small></td><td class="text-nowrap">${hm(r.m)}</td></tr>`).join('')}</tbody></table></div></div></div>
+<div class="col-lg-5"><div class="card p-3 h-100"><h6 class="text-secondary">Bỏ bài &amp; quá hạn gần đây</h6>${bad.length ? `<div class="table-responsive"><table class="table align-middle mb-0"><thead class="thp"><tr><th>Ngày</th><th>Việc</th><th></th></tr></thead><tbody>${bad.map(t => `<tr><td class="text-nowrap">${vn(t.date)}</td><td class="tt" data-act="edit" data-id="${t.id}">${esc(t.title)}<br>${chip(t.subject)}</td><td>${t.status === 'skip' ? '<span class="badge" style="background:#e9e6f2;color:#7b7494">Bỏ qua</span>' : '<span class="badge" style="background:#fde3ec;color:#b0486b">Quá hạn</span>'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><i class="bi bi-trophy fs-2 d-block"></i>Không có việc nào bị bỏ hay quá hạn 🎉</div>'}</div></div></div>`
+: '<div class="card empty"><i class="bi bi-bar-chart fs-2 d-block"></i>Chưa có việc nào trong khoảng thời gian này để thống kê.</div>'}`;
+}
+function drawCharts() {
+  S.ch.forEach(c => c.destroy()); S.ch = [];
+  if (S.tab !== 'stats' || !S.sd || typeof Chart === 'undefined') return;
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; Chart.defaults.color = '#8a84a3';
+  const keys = Object.keys(ST);
+  S.ch.push(new Chart($('#cStatus'), { type: 'doughnut', data: { labels: keys.map(k => ST[k]), datasets: [{ data: S.sd.cnt, backgroundColor: keys.map(k => SCOL[k]), borderWidth: 0 }] }, options: { maintainAspectRatio: false, cutout: '66%', plugins: { legend: { position: 'bottom' } } } }));
+  S.ch.push(new Chart($('#cDay'), { type: 'bar', data: { labels: S.sd.days.map(d => d.slice(8) + '/' + d.slice(5, 7)), datasets: keys.map((k, i) => ({ label: ST[k], data: S.sd.per[i], backgroundColor: SCOL[k], borderRadius: 4 })) }, options: { maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { position: 'bottom' } } } }));
+}
+function render() { $('#view').innerHTML = S.tab === 'today' ? vToday() : S.tab === 'week' ? vWeek() : S.tab === 'month' ? vMonth() : S.tab === 'stats' ? vStats() : vList(); head(); drawCharts(); if ($('#mDay').classList.contains('show')) drawDay() }
 
 /* ---------- Dữ liệu ---------- */
 async function load() {
@@ -272,22 +330,21 @@ async function load() {
 }
 async function loadSubs() {
   const { data, error } = await sb.from('subjects').select('*').order('name');
-  if (error) { S.subs = []; return toast('Chưa có bảng nhóm môn — hãy chạy SQL tạo bảng subjects', 'warning', { delay: 8000 }) }
+  if (error) { S.subs = []; return toast('Chưa có bảng nhóm môn — hãy chạy SQL tạo bảng subjects', 'warning', {}) }
   S.subs = data;
 }
 async function delTask(id) {
   const t = S.tasks.find(x => x.id == id);
   const { error } = await sb.from('tasks').delete().eq('id', id); if (error) throw error;
-  S.trash.push({ task: t, exp: Date.now() + 60000 }); await load(); render();
-  toast(`Đã xóa “${t.title}”. Bạn có 1 phút để hoàn tác.`, 'info', { delay: 60000, action: { label: '↩ Hoàn tác', fn: () => restore(t.id) } });
+  logAdd({ text: `Đã xóa “${t.title}”`, task: t, icon: 'trash3' }); await load(); render();
+  toast(`Đã xóa “${t.title}”. Vẫn hoàn tác được trong 🔔 suốt hôm nay.`, 'info', { action: { label: '↩ Hoàn tác', fn: () => restore(t.id) } });
 }
 async function restore(id) {
   try {
-    const i = S.trash.findIndex(x => x.task.id == id), it = S.trash[i];
-    if (!it || it.exp < Date.now()) { if (i >= 0) S.trash.splice(i, 1); head(); return toast('Đã quá 1 phút, không thể hoàn tác nữa', 'warning') }
-    const { user_id, created_at, ...rest } = it.task;
+    const i = S.log.findIndex(x => x.task && x.task.id == id); if (i < 0) return toast('Không còn mục này để hoàn tác', 'warning');
+    const { user_id, created_at, ...rest } = S.log[i].task, title = rest.title;
     const { error } = await sb.from('tasks').insert(rest); if (error) throw error;
-    S.trash.splice(i, 1); await load(); render(); toast(`Đã khôi phục “${it.task.title}” ✨`);
+    S.log.splice(i, 1); saveLog(); await load(); render(); notify(`Đã khôi phục “${title}” ✨`, 'success');
   } catch (err) { toast(err.message, 'danger') }
 }
 
@@ -362,35 +419,35 @@ async function doImport() {
     const have = new Set(S.subs.map(s => s.name)), nw = [...new Set(ok.map(x => x.subject).filter(x => x && !have.has(x)))];
     if (nw.length) { const { error } = await sb.from('subjects').insert(nw.map(name => ({ name }))); if (error) throw error }
     for (let i = 0; i < ok.length; i += 300) { const { error } = await sb.from('tasks').insert(ok.slice(i, i + 300)); if (error) throw error }
-    mImp.hide(); await Promise.all([load(), loadSubs()]); render(); toast(`Đã nhập ${ok.length} việc từ Excel 📥`);
+    mImp.hide(); await Promise.all([load(), loadSubs()]); render(); notify(`Đã nhập ${ok.length} việc từ Excel 📥`, 'success');
   } catch (err) { toast(err.message, 'danger'); btn.disabled = false }
 }
 
 /* ---------- Nhắc nhở tự động ---------- */
-const fired = new Set(JSON.parse(sessionStorage.getItem('fired') || '[]'));
-const fire = k => { if (fired.has(k)) return false; fired.add(k); sessionStorage.setItem('fired', JSON.stringify([...fired])); return true };
 const osNotify = (t, b) => { if ('Notification' in window && Notification.permission === 'granted') try { new Notification(t, { body: b }) } catch { } };
 const askPerm = () => { if (!('Notification' in window)) return toast('Trình duyệt không hỗ trợ thông báo', 'warning'); Notification.requestPermission().then(p => toast(p === 'granted' ? 'Đã bật nhắc nhở trên máy 🔔' : 'Bạn chưa cho phép thông báo', p === 'granted' ? 'success' : 'warning')) };
+const fire = k => { dayRoll(); if (S.fired.has(k)) return false; S.fired.add(k); saveLog(); return true };
 function check() {
   const n = new Date(), m = n.getHours() * 60 + n.getMinutes();
   day(iso(n)).filter(open_).forEach(t => {
     const b = tm(t.t_start); if (b == null) return;
-    if (m >= b && m < b + 10 && fire(t.id + ':s')) { toast(`${time(t)} · ${t.title}`, 'reminder', { title: 'Đến giờ học rồi! ⏰', delay: 20000 }); osNotify('Đến giờ học rồi!', t.title) }
-    else if (b - m > 0 && b - m <= 5 && fire(t.id + ':p')) { toast(`${t.title} (${time(t)})`, 'reminder', { title: `Còn ${b - m} phút nữa`, delay: 12000 }); osNotify(`Còn ${b - m} phút nữa`, t.title) }
+    if (m >= b && m < b + 10 && fire(t.id + ':s')) { notify(`${time(t)} · ${t.title}`, 'reminder', { title: 'Đến giờ học rồi! ⏰' }); osNotify('Đến giờ học rồi!', t.title) }
+    else if (b - m > 0 && b - m <= 5 && fire(t.id + ':p')) { notify(`${t.title} (${time(t)})`, 'reminder', { title: `Còn ${b - m} phút nữa` }); osNotify(`Còn ${b - m} phút nữa`, t.title) }
   });
 }
 function greet() {
   if (sessionStorage.getItem('greeted')) return; sessionStorage.setItem('greeted', '1');
   const n = new Date(), td = iso(n), m = n.getHours() * 60 + n.getMinutes(), s = stat(day(td));
   const perm = 'Notification' in window && Notification.permission === 'default';
-  toast(s.n ? `Hôm nay bạn có ${s.n} việc, còn ${s.l} việc chưa xong.` : 'Hôm nay chưa có việc nào, thêm kế hoạch nhé!', 'reminder', { title: `${hello()}, ${first()}! 👋`, delay: 9000, action: perm ? { label: 'Bật nhắc nhở trên máy', fn: askPerm } : null });
+  notify(s.n ? `Hôm nay bạn có ${s.n} việc, còn ${s.l} việc chưa xong.` : 'Hôm nay chưa có việc nào, thêm kế hoạch nhé!', 'reminder', { title: `${hello()}, ${first()}! 👋`, action: perm ? { label: 'Bật nhắc nhở trên máy', fn: askPerm } : null });
   const od = S.tasks.filter(t => t.date < td && open_(t)).length, nx = day(td).find(t => open_(t) && tm(t.t_start) != null && tm(t.t_start) >= m);
-  if (od) setTimeout(() => toast(`Bạn còn ${od} việc của những ngày trước chưa hoàn thành.`, 'warning', { delay: 9000 }), 500);
-  if (nx) setTimeout(() => toast(`${time(nx)} · ${nx.title}`, 'info', { title: 'Việc kế tiếp hôm nay', delay: 9000 }), 1000);
+  if (od) setTimeout(() => notify(`Bạn còn ${od} việc của những ngày trước chưa hoàn thành.`, 'warning'), 600);
+  if (nx) setTimeout(() => notify(`${time(nx)} · ${nx.title}`, 'info', { title: 'Việc kế tiếp hôm nay' }), 1200);
 }
 
 /* ---------- Sự kiện ---------- */
 document.addEventListener('click', async e => {
+  const hn = e.target.closest('[data-hn]'); if (hn) { S.tab = hn.dataset.hn === 'stats' ? 'stats' : S.last; return render() }
   const tab = e.target.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; return render() }
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, id = el.dataset.id;
@@ -400,6 +457,7 @@ document.addEventListener('click', async e => {
     else if (a === 'prev' || a === 'next') { S.ws = add(S.ws, a === 'next' ? 7 : -7); render() }
     else if (a === 'now') { S.ws = mon(new Date()); render() }
     else if (a === 'mprev' || a === 'mnext') { S.mo = new Date(S.mo.getFullYear(), S.mo.getMonth() + (a === 'mnext' ? 1 : -1), 1); render() }
+    else if (a === 'sr') { S.sr = id; render() }
     else if (a === 'mnow') { const n = new Date(); S.mo = new Date(n.getFullYear(), n.getMonth(), 1); render() }
     else if (a === 'day') { S.day = id; drawDay(); mDay.show() }
     else if (a === 'dayadd') { S.reopenDay = true; S.after = () => openTask({ date: S.day, status: 'todo' }); mDay.hide() }
@@ -457,7 +515,7 @@ document.addEventListener('change', async e => {
 
 setInterval(() => {
   if (!S.user) return; check();
-  if (!document.querySelector('.modal.show') && !/INPUT|SELECT/.test(document.activeElement.tagName)) render();
+  if (S.tab === 'stats') head(); else if (!document.querySelector('.modal.show') && !/INPUT|SELECT/.test(document.activeElement.tagName)) render();
 }, 30000);
 
 /* ===== KHỞI ĐỘNG ===== */
@@ -465,7 +523,7 @@ setInterval(() => {
   const t0 = Date.now();
   const { data } = await sb.auth.getSession();
   if (!data.session) return location.replace('index.html');
-  S.user = data.session.user;
+  S.user = data.session.user; loadLog();
   const nm = S.user.user_metadata?.name || S.user.email;
   $('#uName').textContent = nm; $('#uMail').textContent = S.user.email; $('#avatar').textContent = nm[0].toUpperCase();
   await Promise.all([load(), loadSubs()]); render();
