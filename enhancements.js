@@ -319,13 +319,15 @@
       cancel.focus();
     });
   }
+  // Public confirmation hook for optional, separately loaded planner modules.
+  window.spConfirm = confirmAction;
   const detailFor = (action,id) => {
     const task = (typeof S !== 'undefined' && S.tasks || []).find(x=>String(x.id)===String(id));
     if (action === 'save') {
       const isEdit = !!S.m?.id;
       return {
         title: isEdit ? msg('Confirm changes?','Xác nhận chỉnh sửa?') : msg('Save this task?','Xác nhận lưu việc?'),
-        detail: msg(isEdit?'Save changes to this task?':'Add this task to your planner?',isEdit?'Bạn chắc chắn muốn lưu những thay đổi của công việc này?':'Bạn chắc chắn muốn thêm công việc này vào kế hoạch?')+'\n'+(document.getElementById('fTitle')?.value.trim()||''),
+        detail: msg(isEdit?'Save changes to this task?':'Add this task to your planner?',isEdit?'Bạn chắc chắn muốn lưu những thay đổi của công việc này?':'Bạn chắc chắn muốn thêm công việc này vào kế hoạch?')+((document.getElementById('spRepeatKind')?.value||'none')!=='none'?msg('\nRepeating occurrences for the next 8 weeks will also be created.','\nCác buổi lặp lại trong 8 tuần tới cũng sẽ được tạo.'):'')+'\n'+(document.getElementById('fTitle')?.value.trim()||''),
         danger:false
       };
     }
