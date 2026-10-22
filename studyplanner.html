@@ -23,7 +23,12 @@
 .glass{background:rgba(255,255,255,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.8);height:60px}
 .ic{position:relative;width:40px;height:40px;border-radius:14px;background:#e7f4f1;color:#3b8f84;border:0;font-size:18px;padding:0}
 .ic .badge{position:absolute;top:-5px;right:-5px;background:#f0788f}
-.av{width:40px;height:40px;border-radius:50%;border:2px solid #b9a8e0;background:#f3eefc;color:var(--pu);font-weight:700}
+.av{width:40px;height:40px;border-radius:50%;border:2px solid #b9a8e0;background:#f3eefc;padding:0;overflow:hidden;animation:avbob 2.8s ease-in-out infinite}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+@keyframes avbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@media(prefers-reduced-motion:reduce){.av{animation:none}}
+.hnav button.homebtn{padding:0 4px 0 0;background:none;box-shadow:none;transition:transform .2s}.hnav button.homebtn:hover{transform:scale(1.05)}
+.hdiv{width:1px;height:24px;background:#d9d0ee;margin:0 6px}
 .note-i{padding:9px 10px;border-radius:12px;font-size:14px;display:flex;align-items:center;gap:8px}.note-i:hover{background:#f8f5fd}#notes{max-height:70vh;overflow-y:auto}
 .side{position:fixed;top:60px;left:0;bottom:0;width:200px;padding:18px 14px;background:rgba(255,255,255,.35);backdrop-filter:blur(10px);z-index:10;--bs-nav-pills-link-active-bg:#fff;--bs-nav-pills-link-active-color:var(--pu)}
 .side .nav-link{color:var(--mut);font-weight:500;border-radius:14px;padding:12px 14px;margin-bottom:8px;text-align:left}
@@ -55,7 +60,8 @@ main{margin:78px 22px 24px 222px;max-width:1300px}
 .hnav button.on{background:#fff;color:var(--pu);box-shadow:0 3px 10px rgba(126,106,168,.15)}#crumb{color:var(--mut);margin-left:6px;font-weight:500}
 .s4{background:#ece9f3;color:#7b7494}.s5{background:#ffeccf;color:#a8701f}.s6{background:#ece6fb;color:#6a55a0}.kp b{font-size:28px}
 @media(max-width:800px){.hnav button{padding:6px 10px;font-size:14px}#crumb{display:none}}
-@media(max-width:520px){.hnav button span{display:none}}
+@media(max-width:640px){.bt,.hdiv{display:none}}
+@media(max-width:520px){.hnav button[data-hn] span{display:none}}
 .mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 .mh{text-align:center;font-weight:700;font-size:13px;color:#6b6585;padding:6px 0}.mh.cn{color:#f08a3c}
 .mc{border:2px solid transparent;border-radius:14px;background:#fff;min-height:82px;padding:6px 4px;text-align:center;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink);transition:.15s}
@@ -73,7 +79,7 @@ main{margin:78px 22px 24px 222px;max-width:1300px}
 <div id="loader"><div class="logo">✦ STUDY PLANNER</div><div class="ld"><u></u></div></div>
 
 <nav class="glass fixed-top px-3 d-flex justify-content-between align-items-center">
-  <div class="hnav"><button data-hn="manage"><i class="bi bi-grid-1x2-fill"></i> <span>Quản lý</span></button><button data-hn="stats"><i class="bi bi-bar-chart-line-fill"></i> <span>Thống kê</span></button><span id="crumb"></span></div>
+  <div class="hnav"><button class="homebtn" data-act="home" title="Về trang chủ"><span class="logo fs-5">✦ <span class="bt">STUDY PLANNER</span></span></button><span class="hdiv"></span><button data-hn="manage"><i class="bi bi-grid-1x2-fill"></i> <span>Quản lý</span></button><button data-hn="stats"><i class="bi bi-bar-chart-line-fill"></i> <span>Thống kê</span></button><span id="crumb"></span></div>
   <div class="d-flex align-items-center gap-2">
     <button class="btn ic" data-act="cal" title="Việc còn lại trong tuần"><i class="bi bi-calendar-week"></i><span id="bWeek" class="badge rounded-pill d-none"></span></button>
     <div class="dropdown">
@@ -81,7 +87,7 @@ main{margin:78px 22px 24px 222px;max-width:1300px}
       <div class="dropdown-menu dropdown-menu-end p-2 border-0 shadow rounded-4" style="width:320px" id="notes"></div>
     </div>
     <div class="dropdown">
-      <button class="btn av" id="avatar" data-bs-toggle="dropdown"></button>
+      <button class="btn av" id="avatar" data-bs-toggle="dropdown" title="Tài khoản"><img src="favicon.png" alt="Tài khoản"></button>
       <ul class="dropdown-menu dropdown-menu-end border-0 shadow rounded-4 p-2">
         <li class="px-3 py-2"><div id="uName" class="fw-semibold"></div><small id="uMail" class="text-secondary"></small></li>
         <li><hr class="dropdown-divider"></li>
@@ -91,7 +97,7 @@ main{margin:78px 22px 24px 222px;max-width:1300px}
         <li><button class="dropdown-item rounded-3 text-danger" data-act="out"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</button></li>
       </ul>
     </div>
-    <span class="logo fs-5 ms-1 brand">STUDY PLANNER</span>
+    
   </div>
 </nav>
 
@@ -454,7 +460,8 @@ document.addEventListener('click', async e => {
   const a = el.dataset.act, id = el.dataset.id;
   if (['st', 'note', 'flt', 'mpick'].includes(a)) return;
   try {
-    if (a === 'cal') { S.tab = 'week'; S.ws = mon(new Date()); render() }
+    if (a === 'home') { S.tab = 'today'; render(); window.scrollTo(0, 0) }
+    else if (a === 'cal') { S.tab = 'week'; S.ws = mon(new Date()); render() }
     else if (a === 'prev' || a === 'next') { S.ws = add(S.ws, a === 'next' ? 7 : -7); render() }
     else if (a === 'now') { S.ws = mon(new Date()); render() }
     else if (a === 'mprev' || a === 'mnext') { S.mo = new Date(S.mo.getFullYear(), S.mo.getMonth() + (a === 'mnext' ? 1 : -1), 1); render() }
@@ -526,7 +533,7 @@ setInterval(() => {
   if (!data.session) return location.replace('index.html');
   S.user = data.session.user; loadLog();
   const nm = S.user.user_metadata?.name || S.user.email;
-  $('#uName').textContent = nm; $('#uMail').textContent = S.user.email; $('#avatar').textContent = nm[0].toUpperCase();
+  $('#uName').textContent = nm; $('#uMail').textContent = S.user.email;
   await Promise.all([load(), loadSubs()]); render();
   setTimeout(() => { $('#loader').classList.add('hide'); setTimeout(() => $('#loader').remove(), 600); greet(); check() }, Math.max(0, 700 - (Date.now() - t0)));
   sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.replace('index.html') });
