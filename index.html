@@ -3,207 +3,72 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Study Planner</title>
+<title>Đăng nhập · Study Planner</title>
 <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="shared.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<style>
-:root{--ink:#3d3659;--mut:#8a84a3;--pu:#7e6aa8;--card:rgba(255,255,255,.74);--ln:#e6dff5;
---todo:#fde3ec;--todoT:#b0486b;--doing:#ffeccf;--doingT:#a8701f;--done:#d8f2e3;--doneT:#2e7a54;--skip:#e9e6f2;--skipT:#7b7494}
-*{box-sizing:border-box}
-body{margin:0;font-family:'Google Sans Flex','Google Sans','Product Sans',system-ui,sans-serif;color:var(--ink);min-height:100vh;background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef) fixed}
-button,input,select{font:inherit;color:inherit}
-header{position:fixed;inset:0 0 auto 0;height:60px;display:flex;justify-content:space-between;align-items:center;padding:0 20px;background:rgba(255,255,255,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.8);z-index:20}
-.hl{font-weight:600;color:var(--pu);display:flex;gap:8px;align-items:center}.hl span{color:var(--mut);font-weight:500}
-.hr{display:flex;align-items:center;gap:12px;position:relative}
-.logo{font-weight:700;letter-spacing:.06em;font-size:18px;background:linear-gradient(90deg,#8e7cc3,#e58fb3,#6fa8dc);-webkit-background-clip:text;background-clip:text;color:transparent;margin-left:6px}
-.ic{position:relative;width:40px;height:40px;border-radius:14px;border:0;background:#e7f4f1;cursor:pointer;font-size:18px}
-.ic i{position:absolute;top:-5px;right:-5px;background:#f0788f;color:#fff;font-size:11px;font-style:normal;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;font-weight:700}
-.av{width:40px;height:40px;border-radius:50%;border:2px solid #b9a8e0;background:#f3eefc;color:var(--pu);font-weight:700;cursor:pointer}
-.pop{position:absolute;top:52px;right:0;width:300px;background:#fff;border-radius:18px;padding:12px;box-shadow:0 12px 40px rgba(126,106,168,.25);font-size:14px}
-.pop div{padding:9px 10px;border-radius:12px}.pop div:nth-child(odd){background:#f8f5fd}
-aside{position:fixed;top:60px;left:0;bottom:0;width:190px;padding:18px 14px;background:rgba(255,255,255,.35);backdrop-filter:blur(10px);z-index:10}
-.nav{display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border:0;border-radius:14px;background:none;color:var(--mut);cursor:pointer;font-weight:500}
-.nav.on{background:#fff;color:var(--pu);box-shadow:0 4px 14px rgba(126,106,168,.15);font-weight:600}
-main{margin:78px 22px 24px 212px}
-h2{margin:0 0 14px;font-size:22px}
-.card{background:var(--card);border:1px solid #fff;border-radius:20px;padding:16px;box-shadow:0 6px 24px rgba(126,106,168,.1)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
-.stat{border-radius:18px;padding:14px;text-align:center}.stat small{display:block;color:var(--mut);font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px}.stat b{font-size:34px}
-.s1{background:#e1ecfd}.s2{background:#d9f3e5}.s3{background:#fde3ec}
-.bar{height:8px;border-radius:6px;background:#ece7f7;overflow:hidden}.bar u{display:block;height:100%;background:linear-gradient(90deg,#b9a8e0,#8fd0b0)}
-.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-.btn{border:0;border-radius:14px;padding:10px 18px;background:linear-gradient(90deg,#b9a8e0,#e9a9c4);color:#fff;font-weight:600;cursor:pointer}
-.btn.ghost{background:#efeaf9;color:var(--pu)}.btn.del{background:#fde3ec;color:var(--todoT)}
-.row{display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:center;padding:12px;border-radius:14px;margin-bottom:8px;background:#fff;border-left:5px solid var(--ln)}
-.row.todo{border-color:#f4a9c0}.row.doing{border-color:#f5cd8a}.row.done{border-color:#8fd0b0}.row.skip{border-color:#c9c3dc}
-.row .tm{color:var(--pu);font-weight:600;font-size:14px}.row small,.wc small{color:var(--mut);display:block}.tt{cursor:pointer}
-.row.done .tt b{text-decoration:line-through;color:var(--mut)}
-.chip{appearance:none;-webkit-appearance:none;border:0;border-radius:99px;padding:6px 14px;font-weight:600;font-size:13px;cursor:pointer;text-align:center}
-.chip.todo{background:var(--todo);color:var(--todoT)}.chip.doing{background:var(--doing);color:var(--doingT)}.chip.done{background:var(--done);color:var(--doneT)}.chip.skip{background:var(--skip);color:var(--skipT)}
-.week{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
-.col{background:var(--card);border:1px solid #fff;border-radius:18px;padding:10px;min-height:240px}.col.now{background:#fff6e6;border-color:#ffd9a0}
-.col h4{margin:0;color:var(--pu)}.col .bar{margin:8px 0 10px}
-.wc{background:#fff;border-radius:12px;padding:9px;margin-bottom:8px;display:grid;gap:6px;font-size:14px;border-left:4px solid var(--ln)}
-.wc.todo{border-color:#f4a9c0}.wc.doing{border-color:#f5cd8a}.wc.done{border-color:#8fd0b0}.wc.skip{border-color:#c9c3dc}.wc b{cursor:pointer}
-.add{width:100%;border:1.5px dashed #cfc4ea;background:none;border-radius:12px;padding:6px;color:var(--mut);cursor:pointer}
-table{width:100%;border-collapse:collapse;font-size:14px}th{background:#7e6aa8;color:#fff;padding:10px;text-align:left;font-weight:600}th:first-child{border-radius:12px 0 0 0}th:last-child{border-radius:0 12px 0 0}
-td{padding:8px 10px;border-bottom:1px solid var(--ln);background:#fff}tr.now td{background:#f3eefc}
-td input{border:0;background:#eef3fd;border-radius:8px;padding:6px 8px;width:100%}
-.sc{overflow-x:auto}
-.ov{position:fixed;inset:0;background:rgba(90,80,130,.25);backdrop-filter:blur(4px);display:grid;place-items:center;z-index:50;padding:14px}
-.mod{width:min(480px,100%);background:#fff;display:grid;gap:10px}.mod h3{margin:0}
-label{display:grid;gap:4px;font-size:13px;color:var(--mut);font-weight:600}
-label input,.sel{border:1.5px solid var(--ln);border-radius:12px;padding:10px;background:#faf8fe;outline:none;color:var(--ink)}label input:focus{border-color:#b9a8e0}
-.g2{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}.bt{display:flex;gap:8px;margin-top:4px}
-.auth{min-height:100vh;display:grid;place-items:center;padding:16px}.auth .card{width:min(400px,100%);display:grid;gap:12px;padding:28px}
-.auth .logo{font-size:26px;text-align:center;margin:0}.tabs{display:flex;background:#efeaf9;border-radius:14px;padding:4px}.tabs button{flex:1;border:0;background:none;padding:9px;border-radius:11px;cursor:pointer;color:var(--mut);font-weight:600}.tabs .on{background:#fff;color:var(--pu)}
-.note{font-size:12px;background:#fff6e6;color:var(--doingT);border-radius:12px;padding:8px 10px}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#3d3659;color:#fff;padding:10px 18px;border-radius:14px;z-index:99;font-size:14px}
-.empty{text-align:center;color:var(--mut);padding:24px}
-@media(max-width:800px){aside{top:auto;bottom:0;width:auto;right:0;height:64px;display:flex;gap:6px;padding:8px;background:rgba(255,255,255,.7)}.nav{margin:0;text-align:center;flex:1;padding:8px}main{margin:76px 12px 82px}.row{grid-template-columns:1fr auto}.row .tm{grid-column:1/3}.stats{gap:8px}.stat b{font-size:26px}.logo{font-size:14px}.hl span{display:none}}
-</style>
 </head>
-<body>
-<div id="app"></div>
+<body style="visibility:hidden">
+<div class="min-vh-100 d-flex align-items-center justify-content-center p-3">
+  <div class="card p-4" style="width:min(420px,100%)">
+    <div class="logo fs-3 text-center mb-1">✦ STUDY PLANNER</div>
+    <p class="text-center text-secondary small mb-3">Lên kế hoạch học tập nhẹ nhàng, rõ ràng</p>
+    <ul class="nav nav-pills nav-fill pill-tabs mb-3">
+      <li class="nav-item"><button class="nav-link active" data-m="login">Đăng nhập</button></li>
+      <li class="nav-item"><button class="nav-link" data-m="signup">Tạo tài khoản</button></li>
+    </ul>
+    <div id="f"></div>
+    <button class="btn btn-main w-100 py-2" id="go"></button>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="shared.js"></script>
 <script>
-/* ===== CẤU HÌNH SUPABASE ===== */
-const SUPABASE_URL = 'https://ebmblkxpukvghogdvypo.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'sb_publishable_SgA7nza5d6yr2-FCUpsx8Q_z8CWdMfi';
-const sb = SUPABASE_URL ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let mode = 'login';
+// Đã đăng nhập từ trước -> vào thẳng trang chính
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) location.replace('studyplanner.html');
+  else document.body.style.visibility = 'visible';
+}).catch(() => document.body.style.visibility = 'visible');
 
-const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0');
-const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const P=s=>{const[a,b,c]=s.split('-');return new Date(a,b-1,c)};
-const add=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
-const mon=d=>add(d,-((d.getDay()+6)%7));
-const vn=s=>{const[a,b,c]=s.split('-');return `${c}/${b}/${a}`};
-const dow=s=>{const g=P(s).getDay();return g?'Thứ '+(g+1):'Chủ nhật'};
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const tm=s=>s?(+s.slice(0,2))*60+(+s.slice(3,5)):null;
-const ST={todo:'Chưa làm',doing:'Đang làm',done:'Đã xong',skip:'Bỏ qua'};
-const TABS={today:['🏠','Hôm nay'],week:['📅','Tuần này'],list:['✅','Checklist']};
-const S={user:null,tasks:[],tab:'today',ws:mon(new Date()),f:'',m:null,pop:null,am:'login'};
+function draw() {
+  const lg = mode === 'login';
+  $('#f').innerHTML =
+    (lg ? '' : `<label class="form-label small fw-semibold text-secondary" for="nm">Tên của bạn</label><input class="form-control mb-3" id="nm" placeholder="Nguyễn Văn A" autocomplete="name">`) +
+    `<label class="form-label small fw-semibold text-secondary" for="em">Email</label><input type="email" class="form-control mb-3" id="em" placeholder="ban@email.com" autocomplete="email">` +
+    pw('pw', 'Mật khẩu', 'Tối thiểu 6 ký tự', lg ? 'current-password' : 'new-password') +
+    (lg ? '' : pw('pw2', 'Nhập lại mật khẩu', '', 'new-password'));
+  $('#go').innerHTML = lg ? '<i class="bi bi-box-arrow-in-right me-1"></i> Đăng nhập' : '<i class="bi bi-person-plus me-1"></i> Tạo tài khoản';
+  document.querySelectorAll('[data-m]').forEach(b => b.classList.toggle('active', b.dataset.m === mode));
+}
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { mode = b.dataset.m; draw(); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('#f')) $('#go').click(); });
 
-function toast(m){const e=document.createElement('div');e.className='toast';e.textContent=m;document.body.append(e);setTimeout(()=>e.remove(),3000)}
-
-/* ===== LỚP DỮ LIỆU: Supabase hoặc chế độ thử (localStorage) ===== */
-const L=(k,v)=>v===undefined?JSON.parse(localStorage.getItem(k)||'null'):localStorage.setItem(k,JSON.stringify(v));
-const DB=sb?{
- async me(){const{data}=await sb.auth.getSession();return data.session?.user||null},
- async login(e,p){const{data,error}=await sb.auth.signInWithPassword({email:e,password:p});if(error)throw error;return data.user},
- async signup(e,p,n){const{data,error}=await sb.auth.signUp({email:e,password:p,options:{data:{name:n}}});if(error)throw error;if(!data.session){S.am='login';throw new Error('Đã tạo tài khoản! Kiểm tra email để xác nhận rồi đăng nhập.')}return data.user},
- async out(){await sb.auth.signOut()},
- async list(){const{data,error}=await sb.from('tasks').select('*');if(error)throw error;return data},
- async save(t){const{error}=t.id?await sb.from('tasks').update(t).eq('id',t.id):await sb.from('tasks').insert(t);if(error)throw error},
- async del(id){const{error}=await sb.from('tasks').delete().eq('id',id);if(error)throw error}
-}:{
- async me(){return L('sp_sess')},
- async login(e,p){const u=L('sp_users')||{};if(!u[e]||u[e].p!==p)throw new Error('Sai email hoặc mật khẩu');L('sp_sess',{email:e,name:u[e].n});return L('sp_sess')},
- async signup(e,p,n){const u=L('sp_users')||{};if(u[e])throw new Error('Email đã tồn tại');u[e]={p,n};L('sp_users',u);L('sp_sess',{email:e,name:n});return L('sp_sess')},
- async out(){localStorage.removeItem('sp_sess')},
- async list(){return L('sp_t_'+S.user.email)||[]},
- async save(t){const a=L('sp_t_'+S.user.email)||[];if(t.id){const i=a.findIndex(x=>x.id===t.id);a[i]={...a[i],...t}}else a.push({...t,id:Date.now()+''+Math.random()});L('sp_t_'+S.user.email,a)},
- async del(id){L('sp_t_'+S.user.email,(L('sp_t_'+S.user.email)||[]).filter(x=>x.id!==id))}
+$('#go').onclick = async () => {
+  const em = $('#em').value.trim(), p = $('#pw').value, btn = $('#go'), old = btn.innerHTML;
+  if (!em || p.length < 6) return toast('Nhập email và mật khẩu (tối thiểu 6 ký tự)', 'warning');
+  if (mode === 'signup' && p !== $('#pw2').value) return toast('Hai mật khẩu chưa giống nhau', 'warning');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...';
+  try {
+    if (mode === 'login') {
+      const { error } = await sb.auth.signInWithPassword({ email: em, password: p });
+      if (error) throw error;
+    } else {
+      const name = $('#nm').value.trim() || em.split('@')[0];
+      const { data, error } = await sb.auth.signUp({ email: em, password: p, options: { data: { name } } });
+      if (error) throw error;
+      if (!data.session) { toast('Đã tạo tài khoản! Hãy kiểm tra email để xác nhận rồi đăng nhập.', 'info'); mode = 'login'; draw(); btn.disabled = false; return; }
+    }
+    toast('Thành công! Đang vào Study Planner...');
+    setTimeout(() => location.replace('studyplanner.html'), 600);
+  } catch (err) {
+    toast(viErr(err.message), 'danger');
+    btn.disabled = false; btn.innerHTML = old;
+  }
 };
-async function load(){try{S.tasks=(await DB.list()).sort((a,b)=>(a.date+(a.t_start||'')).localeCompare(b.date+(b.t_start||'')))}catch(e){toast('Lỗi tải dữ liệu: '+e.message+' (đã chạy SQL tạo bảng chưa?)')}}
-
-/* ===== TIỆN ÍCH ===== */
-const day=ds=>S.tasks.filter(t=>t.date===ds);
-const stat=a=>{const n=a.filter(t=>t.status!=='skip').length,d=a.filter(t=>t.status==='done').length;return{n,d,l:n-d,p:n?Math.round(d/n*100):0}};
-const time=t=>t.t_start?t.t_start+(t.t_end?'–'+t.t_end:''):'Cả ngày';
-const sel=t=>`<select class="chip ${t.status}" data-act="st" data-id="${t.id}">${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k===t.status?'selected':''}>${v}</option>`).join('')}</select>`;
-function notes(){const n=new Date(),td=iso(n),m=n.getHours()*60+n.getMinutes(),r=[],a=day(td),s=stat(a);
- if(s.l>0)r.push(['📌',`Hôm nay còn ${s.l} việc chưa xong`]);
- a.filter(t=>t.status==='todo'||t.status==='doing').forEach(t=>{const b=tm(t.t_start),e=tm(t.t_end);
-  if(e!=null&&e<m)r.push(['⏰',`Đã quá giờ: ${t.title} (${time(t)})`]);
-  else if(b!=null&&b>=m&&b-m<=60)r.push(['🔔',`Sắp tới lúc ${t.t_start}: ${t.title}`]);
-  else if(b!=null&&b<m)r.push(['▶️',`Đến giờ rồi: ${t.title}`])});
- return r}
-
-/* ===== GIAO DIỆN ===== */
-function auth(){const lg=S.am==='login';return `<div class="auth"><div class="card">
-<div class="logo">✦ STUDY PLANNER</div><div class="tabs"><button data-act="mode" data-id="login" class="${lg?'on':''}">Đăng nhập</button><button data-act="mode" data-id="signup" class="${lg?'':'on'}">Tạo tài khoản</button></div>
-${lg?'':'<label>Tên của bạn<input id="nm" placeholder="Nguyễn Văn A"></label>'}
-<label>Email<input id="em" type="email" placeholder="ban@email.com"></label>
-<label>Mật khẩu<input id="pw" type="password" placeholder="Tối thiểu 6 ký tự"></label>
-<button class="btn" data-act="auth">${lg?'Đăng nhập':'Tạo tài khoản'}</button>
-${sb?'':'<div class="note">Chế độ thử: dữ liệu lưu ngay trên trình duyệt. Dán SUPABASE_URL vào đầu file để dùng Supabase thật.</div>'}</div></div>`}
-
-function shell(){const n=notes(),wk=stat(S.tasks.filter(t=>t.date>=iso(S.ws=S.ws)&&0)),
- cw=stat(S.tasks.filter(t=>{const m=mon(new Date());return t.date>=iso(m)&&t.date<=iso(add(m,6))}));
- const nm=S.user.user_metadata?.name||S.user.name||S.user.email;
- return `<header><div class="hl">✦ Quản lý <span>/ ${TABS[S.tab][1]}</span></div>
-<div class="hr"><button class="ic" data-act="cal" title="Việc còn lại trong tuần">📅${cw.l?`<i>${cw.l}</i>`:''}</button>
-<button class="ic" data-act="bell" title="Thông báo">🔔${n.length?`<i>${n.length}</i>`:''}</button>
-<button class="av" data-act="user">${esc(nm[0]||'?').toUpperCase()}</button><div class="logo">STUDY PLANNER</div>
-${S.pop==='bell'?`<div class="pop">${n.length?n.map(x=>`<div>${x[0]} ${esc(x[1])}</div>`).join(''):'<div>Không có thông báo mới 🎉</div>'}</div>`:''}
-${S.pop==='user'?`<div class="pop"><div>${esc(nm)}<small style="display:block;color:var(--mut)">${esc(S.user.email)}</small></div><div><button class="btn del" style="width:100%" data-act="out">Đăng xuất</button></div></div>`:''}
-</div></header>
-<aside>${Object.entries(TABS).map(([k,v])=>`<button class="nav ${S.tab===k?'on':''}" data-act="tab" data-id="${k}">${v[0]} ${v[1]}</button>`).join('')}</aside>
-<main>${S.tab==='today'?vToday():S.tab==='week'?vWeek():vList()}</main>${modal()}`}
-
-function vToday(){const td=iso(new Date()),a=day(td),s=stat(a);
- return `<div class="top"><h2>Hôm nay · ${vn(td)} · ${dow(td)}</h2><button class="btn" data-act="add" data-id="${td}">+ Thêm việc</button></div>
-<div class="stats"><div class="stat s1"><small>Cần làm</small><b>${s.n}</b></div><div class="stat s2"><small>Đã xong</small><b>${s.d}</b></div><div class="stat s3"><small>Còn lại</small><b>${s.l}</b></div></div>
-<div class="card"><div class="bar"><u style="width:${s.p}%"></u></div><p style="margin:8px 0 14px;color:var(--mut)">Hoàn thành ${s.p}%</p>
-${a.length?a.map(t=>`<div class="row ${t.status}"><span class="tm">${time(t)}</span><div class="tt" data-act="edit" data-id="${t.id}"><b>${esc(t.title)}</b><small>${esc(t.subject)}${t.note?' · '+esc(t.note):''}</small></div>${sel(t)}</div>`).join(''):'<div class="empty">Chưa có việc nào hôm nay. Bấm “+ Thêm việc” nhé ✨</div>'}</div>`}
-
-function vWeek(){const td=iso(new Date()),ds=[...Array(7)].map((_,i)=>iso(add(S.ws,i))),s=stat(S.tasks.filter(t=>t.date>=ds[0]&&t.date<=ds[6]));
- return `<div class="top"><h2>Tuần ${vn(ds[0])} – ${vn(ds[6])}</h2><div style="display:flex;gap:8px"><button class="btn ghost" data-act="prev">←</button><button class="btn ghost" data-act="now">Hiện tại</button><button class="btn ghost" data-act="next">→</button></div></div>
-<div class="week">${ds.map(d=>{const a=day(d),x=stat(a);return `<div class="col ${d===td?'now':''}"><h4>${dow(d)}</h4><small style="color:var(--mut)">${vn(d)} · ${x.d}/${x.n} xong</small><div class="bar"><u style="width:${x.p}%"></u></div>
-${a.map(t=>`<div class="wc ${t.status}"><small>${time(t)}</small><b data-act="edit" data-id="${t.id}">${esc(t.title)}</b>${sel(t)}</div>`).join('')}<button class="add" data-act="add" data-id="${d}">+</button></div>`}).join('')}</div>
-<div class="stats" style="margin-top:16px"><div class="stat s1"><small>Tổng việc</small><b>${s.n}</b></div><div class="stat s2"><small>Đã xong</small><b>${s.d}</b></div><div class="stat s3"><small>Tiến độ cả tuần</small><b>${s.p}%</b></div></div>`}
-
-function vList(){const td=iso(new Date()),a=S.tasks.filter(t=>!S.f||t.status===S.f);
- return `<div class="top"><h2>Checklist · Đánh dấu việc học</h2><div style="display:flex;gap:8px"><select class="sel" data-act="flt"><option value="">Tất cả trạng thái</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${S.f===k?'selected':''}>${v}</option>`).join('')}</select><button class="btn" data-act="add" data-id="${td}">+ Thêm việc</button></div></div>
-<div class="card sc"><table><tr><th>Ngày</th><th>Thứ</th><th>Giờ</th><th>Việc cần làm</th><th>Nhóm</th><th>Trạng thái</th><th>Ghi chú</th></tr>
-${a.map(t=>`<tr class="${t.date===td?'now':''}"><td>${vn(t.date)}</td><td>${dow(t.date)}</td><td>${time(t)}</td><td class="tt" data-act="edit" data-id="${t.id}">${esc(t.title)}</td><td>${esc(t.subject)}</td><td>${sel(t)}</td><td><input data-act="note" data-id="${t.id}" value="${esc(t.note)}"></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Chưa có việc nào</td></tr>'}</table></div>`}
-
-function modal(){const m=S.m;if(!m)return'';
- return `<div class="ov"><div class="card mod"><h3>${m.id?'Sửa việc':'Thêm việc học'}</h3>
-<label>Việc cần làm<input id="f_title" value="${esc(m.title)}"></label><label>Nhóm / môn<input id="f_subject" value="${esc(m.subject)}"></label>
-<div class="g2"><label>Ngày<input type="date" id="f_date" value="${m.date}"></label><label>Bắt đầu<input type="time" id="f_s" value="${m.t_start||''}"></label><label>Kết thúc<input type="time" id="f_e" value="${m.t_end||''}"></label></div>
-<label>Ghi chú<input id="f_note" value="${esc(m.note)}"></label>
-<div class="bt"><button class="btn" data-act="save">Lưu</button><button class="btn ghost" data-act="cancel">Hủy</button>${m.id?'<button class="btn del" data-act="del">Xóa</button>':''}</div></div></div>`}
-
-function render(){$('#app').innerHTML=S.user?shell():auth()}
-
-/* ===== SỰ KIỆN ===== */
-document.addEventListener('click',async e=>{
- const el=e.target.closest('[data-act]');
- if(!el){if(S.pop&&!e.target.closest('.pop')){S.pop=null;render()}return}
- const a=el.dataset.act,id=el.dataset.id,g=x=>$(x).value.trim();
- if(a==='st'||a==='note'||a==='flt')return;
- try{
-  if(a==='mode'){S.am=id;render()}
-  else if(a==='auth'){const em=g('#em'),pw=$('#pw').value,nm=$('#nm')?g('#nm'):'';if(!em||pw.length<6)return toast('Nhập email và mật khẩu (≥ 6 ký tự)');
-   S.user=await(S.am==='login'?DB.login(em,pw):DB.signup(em,pw,nm||em.split('@')[0]));await load();render()}
-  else if(a==='out'){await DB.out();S.user=null;S.tasks=[];S.pop=null;render()}
-  else if(a==='tab'){S.tab=id;S.pop=null;render()}
-  else if(a==='cal'){S.tab='week';S.ws=mon(new Date());S.pop=null;render()}
-  else if(a==='bell'||a==='user'){S.pop=S.pop===a?null:a;render()}
-  else if(a==='prev'||a==='next'){S.ws=add(S.ws,a==='next'?7:-7);render()}
-  else if(a==='now'){S.ws=mon(new Date());render()}
-  else if(a==='add'){S.m={date:id,status:'todo'};render()}
-  else if(a==='edit'){S.m={...S.tasks.find(t=>t.id==id)};render()}
-  else if(a==='cancel'){S.m=null;render()}
-  else if(a==='del'){await DB.del(S.m.id);S.m=null;await load();render();toast('Đã xóa')}
-  else if(a==='save'){const t={title:g('#f_title'),subject:g('#f_subject'),date:$('#f_date').value,t_start:$('#f_s').value,t_end:$('#f_e').value,note:g('#f_note'),status:S.m.status||'todo'};
-   if(!t.title||!t.date)return toast('Cần nhập tên việc và ngày');if(S.m.id)t.id=S.m.id;
-   await DB.save(t);S.m=null;await load();render();toast('Đã lưu ✨')}
- }catch(err){toast(err.message||'Có lỗi xảy ra')}
-});
-document.addEventListener('change',async e=>{
- const el=e.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,id=el.dataset.id;
- try{
-  if(a==='flt'){S.f=el.value;render()}
-  else if(a==='st'){const t=S.tasks.find(x=>x.id==id);t.status=el.value;render();await DB.save({id:t.id,status:t.status})}
-  else if(a==='note'){const t=S.tasks.find(x=>x.id==id);t.note=el.value;await DB.save({id:t.id,note:t.note})}
- }catch(err){toast(err.message)}
-});
-document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.closest('.auth input'))document.querySelector('[data-act=auth]').click()});
-setInterval(()=>{if(S.user&&!S.m&&!/INPUT|SELECT/.test(document.activeElement.tagName))render()},30000);
-(async()=>{try{S.user=await DB.me()}catch(e){}if(S.user)await load();render()})();
+draw();
 </script>
 </body>
 </html>
