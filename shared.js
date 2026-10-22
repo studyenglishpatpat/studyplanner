@@ -20,7 +20,7 @@ function toast(msg, type = 'success') {
   new bootstrap.Toast(e, { delay: 3200 }).show();
 }
 
-/* Ô mật khẩu có icon Bootstrap để xem/ẩn */
+/* Ô mật khẩu có icon Bootstrap để xem/ẩn */ 
 const pw = (id, label, ph = '', ac = 'current-password') =>
   `<label class="form-label small fw-semibold text-secondary" for="${id}">${label}</label>
    <div class="input-group mb-3"><input type="password" class="form-control" id="${id}" placeholder="${ph}" autocomplete="${ac}">
