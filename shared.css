@@ -16,3 +16,4 @@ body{background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef) fixed;min-he
 .toast{border-radius:1rem;box-shadow:0 8px 28px rgba(126,106,168,.25);font-weight:500}
 .t-success{background:#d8f2e3;color:#2e7a54}.t-danger{background:#fde3ec;color:#b0486b}.t-info{background:#e1ecfd;color:#3c6fb0}.t-warning{background:#ffeccf;color:#a8701f}
 .progress{background:#ece7f7;border-radius:6px}.progress-bar{background:linear-gradient(90deg,#b9a8e0,#8fd0b0)}
+.t-reminder{background:#ece6fb;color:#5f4a96}.toast{min-width:300px}
