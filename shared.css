@@ -1,0 +1,18 @@
+:root{--ink:#3d3659;--pu:#7e6aa8;--mut:#8a84a3;--ln:#e6dff5;
+--bs-body-font-family:'Google Sans Flex','Google Sans','Product Sans',system-ui,sans-serif;--bs-body-color:#3d3659;--bs-border-radius:.9rem;--bs-link-color:#7e6aa8}
+body{background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef) fixed;min-height:100vh}
+.logo{font-weight:700;letter-spacing:.06em;background:linear-gradient(90deg,#8e7cc3,#e58fb3,#6fa8dc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.text-pu{color:var(--pu)!important}
+.card{background:rgba(255,255,255,.76);border:1px solid #fff;border-radius:1.25rem;box-shadow:0 6px 24px rgba(126,106,168,.1)}
+.btn-main{background:linear-gradient(90deg,#b9a8e0,#e9a9c4);border:0;color:#fff;font-weight:600}
+.btn-main:hover,.btn-main:focus,.btn-main:active{background:linear-gradient(90deg,#a994d6,#e497b8)!important;color:#fff!important}
+.btn-soft{background:#efeaf9;color:var(--pu);border:0;font-weight:600}.btn-soft:hover{background:#e5ddf5;color:var(--pu)}
+.btn-del{background:#fde3ec;color:#b0486b;border:0;font-weight:600}.btn-del:hover{background:#fbd0df;color:#b0486b}
+.form-control,.form-select{background-color:#faf8fe;border-color:var(--ln)}
+.form-control:focus,.form-select:focus{border-color:#b9a8e0;box-shadow:0 0 0 .2rem rgba(185,168,224,.3)}
+.btn-outline-secondary{--bs-btn-color:#8a84a3;--bs-btn-border-color:#e6dff5;--bs-btn-hover-bg:#efeaf9;--bs-btn-hover-color:#7e6aa8;--bs-btn-hover-border-color:#e6dff5;--bs-btn-active-bg:#e5ddf5;--bs-btn-active-color:#7e6aa8;--bs-btn-active-border-color:#e6dff5}
+.pill-tabs{background:#efeaf9;border-radius:1rem;padding:4px}
+.pill-tabs .nav-link{color:var(--mut);font-weight:600;border-radius:.8rem}.pill-tabs .nav-link.active{background:#fff;color:var(--pu)}
+.toast{border-radius:1rem;box-shadow:0 8px 28px rgba(126,106,168,.25);font-weight:500}
+.t-success{background:#d8f2e3;color:#2e7a54}.t-danger{background:#fde3ec;color:#b0486b}.t-info{background:#e1ecfd;color:#3c6fb0}.t-warning{background:#ffeccf;color:#a8701f}
+.progress{background:#ece7f7;border-radius:6px}.progress-bar{background:linear-gradient(90deg,#b9a8e0,#8fd0b0)}
