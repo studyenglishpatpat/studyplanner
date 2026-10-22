@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Study Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="shared.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+#loader{position:fixed;inset:0;z-index:3000;background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .5s}
+#loader.hide{opacity:0;pointer-events:none}
+#loader .logo{font-size:clamp(28px,6vw,46px)}
+.ld{width:180px;height:4px;background:#e0d9f0;border-radius:4px;overflow:hidden}
+.ld u{display:block;width:45%;height:100%;border-radius:4px;background:linear-gradient(90deg,#b9a8e0,#e58fb3);animation:ld 1.1s ease-in-out infinite alternate}
+@keyframes ld{from{transform:translateX(-5%)}to{transform:translateX(125%)}}
+.glass{background:rgba(255,255,255,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.8);height:60px}
+.ic{position:relative;width:40px;height:40px;border-radius:14px;background:#e7f4f1;color:#3b8f84;border:0;font-size:18px;padding:0}
+.ic .badge{position:absolute;top:-5px;right:-5px;background:#f0788f}
+.av{width:40px;height:40px;border-radius:50%;border:2px solid #b9a8e0;background:#f3eefc;color:var(--pu);font-weight:700}
+.note-i{padding:9px 10px;border-radius:12px;font-size:14px}.note-i:nth-child(odd){background:#f8f5fd}
+.side{position:fixed;top:60px;left:0;bottom:0;width:190px;padding:18px 14px;background:rgba(255,255,255,.35);backdrop-filter:blur(10px);z-index:10;--bs-nav-pills-link-active-bg:#fff;--bs-nav-pills-link-active-color:var(--pu)}
+.side .nav-link{color:var(--mut);font-weight:500;border-radius:14px;padding:12px 14px;margin-bottom:8px;text-align:left}
+.side .nav-link.active{box-shadow:0 4px 14px rgba(126,106,168,.15);font-weight:600}
+main{margin:78px 22px 24px 212px}
+.stat{border-radius:18px;padding:14px;text-align:center}.stat small{display:block;color:var(--mut);font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px}.stat b{font-size:34px}
+.s1{background:#e1ecfd}.s2{background:#d9f3e5}.s3{background:#fde3ec}
+.rw{display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:center;padding:12px;border-radius:14px;margin-bottom:8px;background:#fff;border-left:5px solid var(--ln)}
+.todo{--c:#f4a9c0}.doing{--c:#f5cd8a}.done{--c:#8fd0b0}.skip{--c:#c9c3dc}
+.rw,.wc{border-left-color:var(--c)}
+.rw .tm{color:var(--pu);font-weight:600;font-size:14px}.rw small,.wc small{color:var(--mut);display:block}.tt{cursor:pointer}
+.rw.done .tt b{text-decoration:line-through;color:var(--mut)}
+.st{width:auto;border:0;border-radius:99px;font-weight:600;font-size:13px;cursor:pointer}
+.st-todo{background-color:#fde3ec;color:#b0486b}.st-doing{background-color:#ffeccf;color:#a8701f}.st-done{background-color:#d8f2e3;color:#2e7a54}.st-skip{background-color:#e9e6f2;color:#7b7494}
+.week{display:grid;grid-template-columns:repeat(7,minmax(165px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
+.col7{background:rgba(255,255,255,.76);border:1px solid #fff;border-radius:18px;padding:10px;min-height:240px}.col7.now{background:#fff6e6;border-color:#ffd9a0}
+.wc{background:#fff;border-radius:12px;padding:9px;margin-bottom:8px;display:grid;gap:6px;font-size:14px;border-left:4px solid}.wc b{cursor:pointer}
+.add{width:100%;border:1.5px dashed #cfc4ea;background:none;border-radius:12px;padding:4px;color:var(--mut)}
+.thp th{background:#7e6aa8;color:#fff;font-weight:600;white-space:nowrap}.table{--bs-table-bg:transparent}.table td{background:#fff}tr.now td{background:#f3eefc}
+.table td input{border:0;background:#eef3fd;border-radius:8px}
+.empty{text-align:center;color:var(--mut);padding:24px}
+.modal-content{border:0;border-radius:1.25rem}
+@media(max-width:800px){.side{top:auto;bottom:0;width:auto;right:0;height:64px;padding:8px;background:rgba(255,255,255,.75)}.side .nav{flex-direction:row!important;gap:6px}.side .nav-link{margin:0;text-align:center;flex:1;padding:8px;font-size:13px}main{margin:76px 12px 82px}.rw{grid-template-columns:1fr auto}.rw .tm{grid-column:1/3}.stat b{font-size:26px}.brand{display:none}}
+</style>
+</head>
+<body>
+<!-- Màn hình chờ che giao diện cho tới khi kiểm tra xong đăng nhập -->
+<div id="loader"><div class="logo">✦ STUDY PLANNER</div><div class="ld"><u></u></div></div>
+
+<nav class="glass fixed-top px-3 d-flex justify-content-between align-items-center">
+  <div class="d-flex align-items-center gap-2 fw-semibold text-pu"><i class="bi bi-grid-1x2-fill"></i> Quản lý <span id="crumb" class="text-secondary fw-normal"></span></div>
+  <div class="d-flex align-items-center gap-2">
+    <button class="btn ic" data-act="cal" title="Việc còn lại trong tuần"><i class="bi bi-calendar-week"></i><span id="bWeek" class="badge rounded-pill d-none"></span></button>
+    <div class="dropdown">
+      <button class="btn ic" data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Thông báo"><i class="bi bi-bell-fill"></i><span id="bBell" class="badge rounded-pill d-none"></span></button>
+      <div class="dropdown-menu dropdown-menu-end p-2 border-0 shadow rounded-4" style="width:300px" id="notes"></div>
+    </div>
+    <div class="dropdown">
+      <button class="btn av" id="avatar" data-bs-toggle="dropdown"></button>
+      <ul class="dropdown-menu dropdown-menu-end border-0 shadow rounded-4 p-2">
+        <li class="px-3 py-2"><div id="uName" class="fw-semibold"></div><small id="uMail" class="text-secondary"></small></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item rounded-3" data-act="pw"><i class="bi bi-key me-2"></i>Đổi mật khẩu</button></li>
+        <li><button class="dropdown-item rounded-3 text-danger" data-act="out"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</button></li>
+      </ul>
+    </div>
+    <span class="logo fs-5 ms-1 brand">STUDY PLANNER</span>
+  </div>
+</nav>
+
+<aside class="side"><div class="nav nav-pills flex-column">
+  <button class="nav-link" data-tab="today"><i class="bi bi-house-heart me-2"></i>Hôm nay</button>
+  <button class="nav-link" data-tab="week"><i class="bi bi-calendar3-week me-2"></i>Tuần này</button>
+  <button class="nav-link" data-tab="list"><i class="bi bi-check2-square me-2"></i>Checklist</button>
+</div></aside>
+
+<main id="view"></main>
+
+<!-- Modal thêm / sửa việc -->
+<div class="modal fade" id="mTask" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-2">
+  <div class="modal-header border-0"><h5 class="modal-title" id="mTitle"></h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <label class="form-label small fw-semibold text-secondary">Việc cần làm</label><input class="form-control mb-3" id="fTitle">
+    <label class="form-label small fw-semibold text-secondary">Nhóm / môn</label><input class="form-control mb-3" id="fSub">
+    <div class="row g-2 mb-3"><div class="col-12 col-sm-5"><label class="form-label small fw-semibold text-secondary">Ngày</label><input type="date" class="form-control" id="fDate"></div>
+    <div class="col-6 col-sm-3"><label class="form-label small fw-semibold text-secondary">Bắt đầu</label><input type="time" class="form-control" id="fS"></div>
+    <div class="col-6 col-sm-4"><label class="form-label small fw-semibold text-secondary">Kết thúc</label><input type="time" class="form-control" id="fE"></div></div>
+    <label class="form-label small fw-semibold text-secondary">Ghi chú</label><input class="form-control" id="fNote">
+  </div>
+  <div class="modal-footer border-0"><button class="btn btn-del me-auto d-none" id="bDel" data-act="del"><i class="bi bi-trash"></i> Xóa</button>
+    <button class="btn btn-soft" data-bs-dismiss="modal">Hủy</button><button class="btn btn-main px-4" data-act="save">Lưu</button></div>
+</div></div></div>
+
+<!-- Modal đổi mật khẩu -->
+<div class="modal fade" id="mPw" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content p-2">
+  <div class="modal-header border-0"><h5 class="modal-title"><i class="bi bi-key me-2"></i>Đổi mật khẩu</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="pwBody"></div>
+  <div class="modal-footer border-0"><button class="btn btn-soft" data-bs-dismiss="modal">Hủy</button><button class="btn btn-main px-4" id="bPw" data-act="pwsave">Cập nhật</button></div>
+</div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="shared.js"></script>
+<script>
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const P = s => { const [a, b, c] = s.split('-'); return new Date(a, b - 1, c) };
+const add = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x };
+const mon = d => add(d, -((d.getDay() + 6) % 7));
+const vn = s => { const [a, b, c] = s.split('-'); return `${c}/${b}/${a}` };
+const dow = s => { const g = P(s).getDay(); return g ? 'Thứ ' + (g + 1) : 'Chủ nhật' };
+const tm = s => s ? (+s.slice(0, 2)) * 60 + (+s.slice(3, 5)) : null;
+const ST = { todo: 'Chưa làm', doing: 'Đang làm', done: 'Đã xong', skip: 'Bỏ qua' };
+const TABS = { today: 'Hôm nay', week: 'Tuần này', list: 'Checklist' };
+const S = { user: null, tasks: [], tab: 'today', ws: mon(new Date()), f: '', m: null };
+const mTask = new bootstrap.Modal('#mTask'), mPw = new bootstrap.Modal('#mPw');
+
+const day = ds => S.tasks.filter(t => t.date === ds);
+const stat = a => { const n = a.filter(t => t.status !== 'skip').length, d = a.filter(t => t.status === 'done').length; return { n, d, l: n - d, p: n ? Math.round(d / n * 100) : 0 } };
+const time = t => t.t_start ? t.t_start + (t.t_end ? '–' + t.t_end : '') : 'Cả ngày';
+const sel = t => `<select class="form-select form-select-sm st st-${t.status}" data-act="st" data-id="${t.id}">${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === t.status ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+const bar = p => `<div class="progress" style="height:8px"><div class="progress-bar" style="width:${p}%"></div></div>`;
+
+function notes() {
+  const n = new Date(), m = n.getHours() * 60 + n.getMinutes(), a = day(iso(n)), r = [], s = stat(a);
+  if (s.l > 0) r.push(['pin-angle-fill', `Hôm nay còn ${s.l} việc chưa xong`]);
+  a.filter(t => t.status === 'todo' || t.status === 'doing').forEach(t => {
+    const b = tm(t.t_start), e = tm(t.t_end);
+    if (e != null && e < m) r.push(['alarm-fill', `Đã quá giờ: ${t.title} (${time(t)})`]);
+    else if (b != null && b >= m && b - m <= 60) r.push(['bell-fill', `Sắp tới lúc ${t.t_start}: ${t.title}`]);
+    else if (b != null && b < m) r.push(['play-circle-fill', `Đến giờ rồi: ${t.title}`]);
+  });
+  return r;
+}
+const badge = (s, n) => { const e = $(s); e.textContent = n; e.classList.toggle('d-none', !n) };
+
+function head() {
+  const n = notes(), m = mon(new Date()), cw = stat(S.tasks.filter(t => t.date >= iso(m) && t.date <= iso(add(m, 6))));
+  badge('#bWeek', cw.l); badge('#bBell', n.length);
+  $('#notes').innerHTML = n.length ? n.map(x => `<div class="note-i"><i class="bi bi-${x[0]} text-pu me-2"></i>${esc(x[1])}</div>`).join('') : '<div class="note-i text-secondary">Không có thông báo mới 🎉</div>';
+  $('#crumb').textContent = '/ ' + TABS[S.tab];
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === S.tab));
+}
+
+function vToday() {
+  const td = iso(new Date()), a = day(td), s = stat(a);
+  return `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h4 class="m-0">Hôm nay · ${vn(td)} · ${dow(td)}</h4><button class="btn btn-main" data-act="add" data-id="${td}"><i class="bi bi-plus-lg"></i> Thêm việc</button></div>
+<div class="row g-3 mb-3"><div class="col-4"><div class="stat s1"><small>Cần làm</small><b>${s.n}</b></div></div><div class="col-4"><div class="stat s2"><small>Đã xong</small><b>${s.d}</b></div></div><div class="col-4"><div class="stat s3"><small>Còn lại</small><b>${s.l}</b></div></div></div>
+<div class="card p-3">${bar(s.p)}<p class="text-secondary my-2">Hoàn thành ${s.p}%</p>
+${a.length ? a.map(t => `<div class="rw ${t.status}"><span class="tm"><i class="bi bi-clock me-1"></i>${time(t)}</span><div class="tt" data-act="edit" data-id="${t.id}"><b>${esc(t.title)}</b><small>${esc(t.subject)}${t.note ? ' · ' + esc(t.note) : ''}</small></div>${sel(t)}</div>`).join('') : '<div class="empty"><i class="bi bi-emoji-smile fs-3 d-block"></i>Chưa có việc nào hôm nay. Bấm “Thêm việc” nhé ✨</div>'}</div>`;
+}
+
+function vWeek() {
+  const td = iso(new Date()), ds = [...Array(7)].map((_, i) => iso(add(S.ws, i))), s = stat(S.tasks.filter(t => t.date >= ds[0] && t.date <= ds[6]));
+  return `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h4 class="m-0">Tuần ${vn(ds[0])} – ${vn(ds[6])}</h4>
+<div class="btn-group"><button class="btn btn-soft" data-act="prev"><i class="bi bi-chevron-left"></i></button><button class="btn btn-soft" data-act="now"><i class="bi bi-calendar-check me-1"></i>Hiện tại</button><button class="btn btn-soft" data-act="next"><i class="bi bi-chevron-right"></i></button></div></div>
+<div class="week">${ds.map(d => { const a = day(d), x = stat(a); return `<div class="col7 ${d === td ? 'now' : ''}"><h6 class="text-pu m-0">${dow(d)}</h6><small class="text-secondary">${vn(d)} · ${x.d}/${x.n} xong</small><div class="my-2">${bar(x.p)}</div>
+${a.map(t => `<div class="wc ${t.status}"><small><i class="bi bi-clock me-1"></i>${time(t)}</small><b data-act="edit" data-id="${t.id}">${esc(t.title)}</b>${sel(t)}</div>`).join('')}<button class="add" data-act="add" data-id="${d}"><i class="bi bi-plus"></i></button></div>` }).join('')}</div>
+<div class="row g-3 mt-1"><div class="col-4"><div class="stat s1"><small>Tổng việc</small><b>${s.n}</b></div></div><div class="col-4"><div class="stat s2"><small>Đã xong</small><b>${s.d}</b></div></div><div class="col-4"><div class="stat s3"><small>Tiến độ tuần</small><b>${s.p}%</b></div></div></div>`;
+}
+
+function vList() {
+  const td = iso(new Date()), a = S.tasks.filter(t => !S.f || t.status === S.f);
+  return `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h4 class="m-0">Checklist · Đánh dấu việc học</h4><div class="d-flex gap-2">
+<select class="form-select" data-act="flt"><option value="">Tất cả trạng thái</option>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${S.f === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+<button class="btn btn-main text-nowrap" data-act="add" data-id="${td}"><i class="bi bi-plus-lg"></i> Thêm việc</button></div></div>
+<div class="card p-2"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="thp"><tr><th>Ngày</th><th>Thứ</th><th>Giờ</th><th>Việc cần làm</th><th>Nhóm</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody>
+${a.map(t => `<tr class="${t.date === td ? 'now' : ''}"><td>${vn(t.date)}</td><td>${dow(t.date)}</td><td class="text-nowrap">${time(t)}</td><td class="tt" data-act="edit" data-id="${t.id}">${esc(t.title)}</td><td>${esc(t.subject)}</td><td>${sel(t)}</td><td><input class="form-control form-control-sm" data-act="note" data-id="${t.id}" value="${esc(t.note)}"></td></tr>`).join('') || '<tr><td colspan="7" class="empty">Chưa có việc nào</td></tr>'}</tbody></table></div></div>`;
+}
+
+function render() { $('#view').innerHTML = S.tab === 'today' ? vToday() : S.tab === 'week' ? vWeek() : vList(); head() }
+
+async function load() {
+  const { data, error } = await sb.from('tasks').select('*');
+  if (error) return toast('Lỗi tải dữ liệu: ' + error.message + ' (đã chạy SQL tạo bảng chưa?)', 'danger');
+  S.tasks = data.sort((a, b) => (a.date + (a.t_start || '')).localeCompare(b.date + (b.t_start || '')));
+}
+
+function openTask(m) {
+  S.m = m; $('#mTitle').textContent = m.id ? 'Sửa việc' : 'Thêm việc học';
+  $('#fTitle').value = m.title || ''; $('#fSub').value = m.subject || ''; $('#fDate').value = m.date; $('#fS').value = m.t_start || ''; $('#fE').value = m.t_end || ''; $('#fNote').value = m.note || '';
+  $('#bDel').classList.toggle('d-none', !m.id); mTask.show();
+}
+
+document.addEventListener('click', async e => {
+  const tab = e.target.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; return render() }
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act, id = el.dataset.id;
+  if (['st', 'note', 'flt'].includes(a)) return;
+  try {
+    if (a === 'cal') { S.tab = 'week'; S.ws = mon(new Date()); render() }
+    else if (a === 'prev' || a === 'next') { S.ws = add(S.ws, a === 'next' ? 7 : -7); render() }
+    else if (a === 'now') { S.ws = mon(new Date()); render() }
+    else if (a === 'add') openTask({ date: id, status: 'todo' });
+    else if (a === 'edit') openTask({ ...S.tasks.find(t => t.id == id) });
+    else if (a === 'save') {
+      const t = { title: $('#fTitle').value.trim(), subject: $('#fSub').value.trim(), date: $('#fDate').value, t_start: $('#fS').value, t_end: $('#fE').value, note: $('#fNote').value.trim(), status: S.m.status || 'todo' };
+      if (!t.title || !t.date) return toast('Cần nhập tên việc và ngày', 'warning');
+      const { error } = S.m.id ? await sb.from('tasks').update(t).eq('id', S.m.id) : await sb.from('tasks').insert(t);
+      if (error) throw error;
+      mTask.hide(); await load(); render(); toast(S.m.id ? 'Đã cập nhật việc ✨' : 'Đã thêm việc mới ✨');
+    }
+    else if (a === 'del') {
+      const { error } = await sb.from('tasks').delete().eq('id', S.m.id); if (error) throw error;
+      mTask.hide(); await load(); render(); toast('Đã xóa việc', 'info');
+    }
+    else if (a === 'pw') {
+      $('#pwBody').innerHTML = pw('pwOld', 'Mật khẩu hiện tại') + pw('pwNew', 'Mật khẩu mới', 'Tối thiểu 6 ký tự', 'new-password') + pw('pwNew2', 'Nhập lại mật khẩu mới', '', 'new-password');
+      mPw.show();
+    }
+    else if (a === 'pwsave') {
+      const o = $('#pwOld').value, n = $('#pwNew').value;
+      if (!o || n.length < 6) return toast('Nhập mật khẩu hiện tại và mật khẩu mới (≥ 6 ký tự)', 'warning');
+      if (n !== $('#pwNew2').value) return toast('Mật khẩu mới nhập lại chưa khớp', 'warning');
+      if (n === o) return toast('Mật khẩu mới phải khác mật khẩu cũ', 'warning');
+      const btn = $('#bPw'); btn.disabled = true;
+      try {
+        const chk = await sb.auth.signInWithPassword({ email: S.user.email, password: o });
+        if (chk.error) throw new Error('Mật khẩu hiện tại không đúng');
+        const { error } = await sb.auth.updateUser({ password: n }); if (error) throw error;
+        mPw.hide(); toast('Đã đổi mật khẩu thành công 🔐');
+      } finally { btn.disabled = false }
+    }
+    else if (a === 'out') { await sb.auth.signOut(); location.replace('login.html') }
+  } catch (err) { toast(viErr(err.message || 'Có lỗi xảy ra'), 'danger') }
+});
+
+document.addEventListener('change', async e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act, t = S.tasks.find(x => x.id == el.dataset.id);
+  if (a === 'flt') { S.f = el.value; return render() }
+  try {
+    if (a === 'st') { t.status = el.value; render(); const { error } = await sb.from('tasks').update({ status: t.status }).eq('id', t.id); if (error) throw error; toast(`Đã chuyển sang “${ST[t.status]}”`, t.status === 'done' ? 'success' : 'info') }
+    else if (a === 'note') { t.note = el.value; const { error } = await sb.from('tasks').update({ note: t.note }).eq('id', t.id); if (error) throw error; toast('Đã lưu ghi chú', 'info') }
+  } catch (err) { toast(err.message, 'danger') }
+});
+
+setInterval(() => { if (S.user && !document.querySelector('.modal.show') && !/INPUT|SELECT/.test(document.activeElement.tagName)) render() }, 30000);
+
+/* ===== KHỞI ĐỘNG: kiểm tra đăng nhập trong lúc màn hình chờ đang che ===== */
+(async () => {
+  const t0 = Date.now();
+  const { data } = await sb.auth.getSession();
+  if (!data.session) return location.replace('login.html');   // chưa đăng nhập -> về trang đăng nhập (loader vẫn che)
+  S.user = data.session.user;
+  const nm = S.user.user_metadata?.name || S.user.email;
+  $('#uName').textContent = nm; $('#uMail').textContent = S.user.email; $('#avatar').textContent = nm[0].toUpperCase();
+  await load(); render();
+  setTimeout(() => { $('#loader').classList.add('hide'); setTimeout(() => $('#loader').remove(), 600) }, Math.max(0, 700 - (Date.now() - t0)));
+  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.replace('login.html') });
+})();
+</script>
+</body>
+</html>
