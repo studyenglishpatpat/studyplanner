@@ -21,3 +21,8 @@ body{background:linear-gradient(135deg,#efe9fb,#e4effc 55%,#fde8ef) fixed;min-he
 @keyframes tin{from{transform:translateX(120%);opacity:0}to{transform:none;opacity:1}}
 .toast.out{overflow:hidden;animation:tout .6s cubic-bezier(.5,0,.75,.4) forwards}
 @keyframes tout{0%{transform:none;opacity:1;height:var(--h)}60%{transform:translateX(120%);opacity:0;height:var(--h)}100%{transform:translateX(120%);opacity:0;height:0;margin-bottom:0}}
+.toast{position:relative;overflow:hidden}
+.tbar{position:absolute;left:0;bottom:0;height:4px;width:100%;background:var(--bar,#b9a8e0);transform-origin:left center;animation-name:tbar;animation-timing-function:linear;animation-fill-mode:forwards;animation-delay:.5s}
+@keyframes tbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.toast:hover .tbar{animation-play-state:paused}
+.t-success{--bar:#58b98a}.t-danger{--bar:#ef6f8e}.t-info{--bar:#6f9fe0}.t-warning{--bar:#eba94a}.t-reminder{--bar:#9b84d6}
