@@ -7,20 +7,23 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSe
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/* Toast Bootstrap: type = success | danger | info | warning */
-function toast(msg, type = 'success') {
+/* Toast Bootstrap (góc phải màn hình). type = success | danger | info | warning | reminder
+   o = { title, delay (ms), action: { label, fn } }  */
+function toast(msg, type = 'success', o = {}) {
   let box = $('#tc');
-  if (!box) { box = document.createElement('div'); box.id = 'tc'; box.className = 'toast-container position-fixed bottom-0 start-50 translate-middle-x p-3'; box.style.zIndex = 2000; document.body.append(box); }
-  const ic = { success: 'check-circle-fill', danger: 'x-circle-fill', info: 'info-circle-fill', warning: 'exclamation-triangle-fill' }[type];
+  if (!box) { box = document.createElement('div'); box.id = 'tc'; box.className = 'toast-container position-fixed top-0 end-0 p-3'; box.style.zIndex = 2000; document.body.append(box); }
+  const ic = { success: 'check-circle-fill', danger: 'x-circle-fill', info: 'info-circle-fill', warning: 'exclamation-triangle-fill', reminder: 'bell-fill' }[type];
   const e = document.createElement('div');
-  e.className = `toast align-items-center border-0 t-${type}`; e.setAttribute('role', 'alert');
-  e.innerHTML = `<div class="d-flex"><div class="toast-body"><i class="bi bi-${ic} me-2"></i>${esc(msg)}</div><button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+  e.className = `toast border-0 t-${type}`; e.setAttribute('role', 'alert');
+  e.innerHTML = `<div class="d-flex align-items-start"><div class="toast-body flex-grow-1"><i class="bi bi-${ic} me-2"></i>${o.title ? `<b>${esc(o.title)}</b><br>` : ''}${esc(msg)}${o.action ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-light rounded-pill fw-semibold" data-ta>${esc(o.action.label)}</button></div>` : ''}</div><button type="button" class="btn-close m-2" data-bs-dismiss="toast"></button></div>`;
   box.append(e);
+  const t = new bootstrap.Toast(e, { delay: o.delay ?? 3500 });
+  if (o.action) e.querySelector('[data-ta]').onclick = () => { t.hide(); o.action.fn(); };
   e.addEventListener('hidden.bs.toast', () => e.remove());
-  new bootstrap.Toast(e, { delay: 3200 }).show();
+  t.show(); return t;
 }
 
-/* Ô mật khẩu có icon Bootstrap để xem/ẩn */ 
+/* Ô mật khẩu có icon Bootstrap để xem/ẩn */
 const pw = (id, label, ph = '', ac = 'current-password') =>
   `<label class="form-label small fw-semibold text-secondary" for="${id}">${label}</label>
    <div class="input-group mb-3"><input type="password" class="form-control" id="${id}" placeholder="${ph}" autocomplete="${ac}">
