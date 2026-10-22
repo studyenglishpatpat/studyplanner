@@ -222,7 +222,7 @@ document.addEventListener('click', async e => {
         mPw.hide(); toast('Đã đổi mật khẩu thành công 🔐');
       } finally { btn.disabled = false }
     }
-    else if (a === 'out') { await sb.auth.signOut(); location.replace('login.html') }
+    else if (a === 'out') { await sb.auth.signOut(); location.replace('index.html') }
   } catch (err) { toast(viErr(err.message || 'Có lỗi xảy ra'), 'danger') }
 });
 
@@ -242,13 +242,13 @@ setInterval(() => { if (S.user && !document.querySelector('.modal.show') && !/IN
 (async () => {
   const t0 = Date.now();
   const { data } = await sb.auth.getSession();
-  if (!data.session) return location.replace('login.html');   // chưa đăng nhập -> về trang đăng nhập (loader vẫn che)
+  if (!data.session) return location.replace('index.html');   // chưa đăng nhập -> về trang đăng nhập (loader vẫn che)
   S.user = data.session.user;
   const nm = S.user.user_metadata?.name || S.user.email;
   $('#uName').textContent = nm; $('#uMail').textContent = S.user.email; $('#avatar').textContent = nm[0].toUpperCase();
   await load(); render();
   setTimeout(() => { $('#loader').classList.add('hide'); setTimeout(() => $('#loader').remove(), 600) }, Math.max(0, 700 - (Date.now() - t0)));
-  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.replace('login.html') });
+  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.replace('index.html') });
 })();
 </script>
 </body>
