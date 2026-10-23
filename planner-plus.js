@@ -1,6 +1,5 @@
-/* STUDY PLANNER PLUS — optional add-on. No edits to the original task, auth,
-   import or statistics functions. Recurrence/mood/focus preferences are saved
-   on this browser for the current user; generated tasks remain in Supabase. */
+/* STUDY PLANNER PLUS — optional add-on. Base tasks/auth/UI remain untouched.
+   V7: personalized data synchronizes through Supabase with a local backup. */
 (() => {
   'use strict';
   if (!document.getElementById('mTask') || typeof S === 'undefined') return;
@@ -19,8 +18,8 @@
   const EXTRAS = {focus:{en:'Focus Mode',vi:'Tập trung',icon:'stopwatch'},mood:{en:'Mood Tracker',vi:'Cảm xúc',icon:'emoji-smile'}};
   TABS.focus = 'Focus Mode'; TABS.mood = 'Mood Tracker';
   let rules=[], moods={}, focus={}, moodDraft=null, changed=false, menuOpen=false;
-  // V6 visual preferences are intentionally separate from existing Supabase task columns.
-  // A missing entry means exactly the original task appearance.
+  // Appearance is stored per task in a secure Supabase companion table.
+  // Missing color/priority still means the exact original task appearance.
   const PALETTE = [
     ['rose','#D78FAB','Rose','Hồng'], ['coral','#D99588','Coral','San hô'],
     ['apricot','#DFA873','Apricot','Cam đào'], ['honey','#C7B16C','Honey','Vàng mật'],
@@ -31,14 +30,14 @@
   const PALETTE_MAP = new Map(PALETTE.map(([id,hex])=>[id,hex]));
   let taskStyles={}, styleDraft={color:'',priority:false}, preservedStyleDraft=null, pendingStyleSave=null;
   const cleanStyle = v => ({color:PALETTE_MAP.has(v?.color)?v.color:'',priority:!!v?.priority});
-  function saveTaskStyles(){put('taskstyles',taskStyles)}
+  function saveTaskStyles(id){put('taskstyles',taskStyles);if(id!=null)stageCloud('taskstyles',String(id),cleanStyle(taskStyles[String(id)]))}
   function styleFor(id){return cleanStyle(taskStyles[String(id)])}
   function setStyle(id,appearance){
     if(id==null)return;
     const cfg=cleanStyle(appearance);
     if(cfg.color||cfg.priority)taskStyles[String(id)]=cfg;
     else delete taskStyles[String(id)];
-    saveTaskStyles();
+    saveTaskStyles(id);
   }
 
   let currentUser=null, generating=false, generateQueued=false, dragging=null;
@@ -47,12 +46,172 @@
     if (!S.user) return false;
     if (currentUser !== S.user.id) {
       currentUser=S.user.id; rules=get('rules',[]); moods=get('moods',{});focus={...defaultFocus(),...get('focus',defaultFocus())}; taskStyles=get('taskstyles',{});
+      resetCloudState();
+      queueMicrotask(()=>{ if(S.user?.id===currentUser) void initializeCloud(); });
     }
     return true;
   }
-  function saveRules(){put('rules',rules)}
-  function saveMood(){put('moods',moods)}
-  function saveFocus(){put('focus',focus)}
+  function saveRules(rule){put('rules',rules);if(rule)stageCloud('rules',String(rule.id),rule)}
+  function saveMood(date){put('moods',moods);if(date)stageCloud('moods',date,moods[date])}
+  function saveFocus(){put('focus',focus);stageCloud('focus','current',focus)}
+  /* Cloud Sync V7: secure per-user records rather than overwriting one large
+     JSON object. Local storage is a backup/migration source, not source of truth.
+     No service role key is ever shipped to the browser. */
+  const CLOUD_TABLE='sp_sync_items';
+  let cloudReady=false,cloudLoading=false,cloudErrorShown=false,cloudWriteTimer=null;
+  let cloudFlushing=false,cloudPulling=false,lastPull=0,lastTaskPull=0;
+  const cloudPending=new Map();
+  const cloudKey=(category,key)=>`${category}\u0000${key}`;
+  function cloneData(x){return JSON.parse(JSON.stringify(x))}
+  function resetCloudState(){
+    cloudReady=false;cloudLoading=false;cloudErrorShown=false;lastPull=0;lastTaskPull=0;
+    cloudPending.clear();
+    if(cloudWriteTimer){clearTimeout(cloudWriteTimer);cloudWriteTimer=null}
+  }
+  function stageCloud(category,key,payload){
+    if(!S.user)return;
+    const row={user_id:S.user.id,category,item_key:String(key),payload:cloneData(payload||{})};
+    cloudPending.set(cloudKey(category,row.item_key),row);
+    if(cloudReady)planCloudFlush();
+  }
+  function planCloudFlush(){
+    if(cloudWriteTimer)return;
+    cloudWriteTimer=setTimeout(()=>{cloudWriteTimer=null;void flushCloud()},140);
+  }
+  async function flushCloud(){
+    if(!cloudReady||cloudFlushing||!cloudPending.size||!S.user)return;
+    cloudFlushing=true;
+    try{
+      const rows=[...cloudPending.values()].slice(0,100);
+      const {error}=await sb.from(CLOUD_TABLE).upsert(rows,{onConflict:'user_id,category,item_key'});
+      if(error)throw error;
+      for(const row of rows){
+        const key=cloudKey(row.category,row.item_key);
+        if(cloudPending.get(key)===row)cloudPending.delete(key);
+      }
+      if(cloudPending.size)planCloudFlush();
+    }catch(err){
+      console.warn('[Study Planner] Cloud write:',err);
+      if(!cloudErrorShown){cloudErrorShown=true;toast(tr('Cloud save failed. Changes are kept in this browser; check connection/SQL.','Không lưu được lên đám mây. Dữ liệu vẫn còn trên máy; kiểm tra mạng/SQL.'),'warning',{delay:10000})}
+    }finally{cloudFlushing=false}
+  }
+  async function allCloudRows(){
+    const result=[];
+    for(let start=0;start<100000;start+=500){
+      const {data,error}=await sb.from(CLOUD_TABLE).select('category,item_key,payload')
+        .eq('user_id',S.user.id).in('category',['rules','moods','focus','taskstyles'])
+        .order('category').order('item_key').range(start,start+499);
+      if(error)throw error;
+      result.push(...(data||[]));if(!data||data.length<500)break;
+    }
+    return result;
+  }
+  // Import pre-V7 local preferences only once per browser/account, never
+  // overwriting an existing cloud row. Keep original localStorage as backup.
+  async function importOldLocalData(){
+    const flag=`studyplanner_cloud_v7_imported_${S.user.id}`;
+    if(localStorage.getItem(flag)==='yes')return;
+    const rows=[];const user_id=S.user.id;
+    const push=(category,key,value)=>rows.push({user_id,category,item_key:String(key),payload:cloneData(value)});
+    for(const rule of get('rules',[]))if(rule?.id)push('rules',rule.id,rule);
+    for(const [date,value] of Object.entries(get('moods',{})))if(/^\d{4}-\d{2}-\d{2}$/.test(date)&&value)push('moods',date,value);
+    const f=get('focus',null);if(f)push('focus','current',f);
+    for(const [id,value] of Object.entries(get('taskstyles',{})))if(value)push('taskstyles',id,cleanStyle(value));
+    for(let i=0;i<rows.length;i+=100){
+      const {error}=await sb.from(CLOUD_TABLE).upsert(rows.slice(i,i+100),{
+        onConflict:'user_id,category,item_key',ignoreDuplicates:true
+      });
+      if(error)throw error;
+    }
+    localStorage.setItem(flag,'yes');
+  }
+  function applyCloudRows(rows){
+    const serverRules=[],serverMoods={},serverStyles={};let serverFocus=null;
+    for(const row of rows){
+      if(row.category==='rules'&&row.payload?.id)serverRules.push(row.payload);
+      if(row.category==='moods')serverMoods[row.item_key]=row.payload;
+      if(row.category==='taskstyles'){
+        const style=cleanStyle(row.payload);
+        if(style.color||style.priority)serverStyles[row.item_key]=style;
+      }
+      if(row.category==='focus'&&row.item_key==='current')serverFocus=row.payload;
+    }
+    // Never wipe an unsent local edit if a poll races with a save.
+    for(const row of cloudPending.values()){
+      if(row.category==='rules'){
+        const i=serverRules.findIndex(r=>r.id===row.item_key);
+        if(i>=0)serverRules[i]=row.payload;else serverRules.push(row.payload);
+      }
+      if(row.category==='moods')serverMoods[row.item_key]=row.payload;
+      if(row.category==='focus')serverFocus=row.payload;
+      if(row.category==='taskstyles'){
+        const style=cleanStyle(row.payload);
+        if(style.color||style.priority)serverStyles[row.item_key]=style;
+        else delete serverStyles[row.item_key];
+      }
+    }
+    const previous=JSON.stringify([rules,moods,focus,taskStyles]);
+    rules=serverRules;moods=serverMoods;focus={...defaultFocus(),...(serverFocus||{})};taskStyles=serverStyles;
+    put('rules',rules);put('moods',moods);put('focus',focus);put('taskstyles',taskStyles);
+    return previous!==JSON.stringify([rules,moods,focus,taskStyles]);
+  }
+  async function initializeCloud(){
+    if(cloudReady||cloudLoading||!S.user)return;
+    cloudLoading=true;const user=S.user.id;
+    try{
+      await importOldLocalData();
+      if(!S.user||S.user.id!==user)return;
+      const changed=applyCloudRows(await allCloudRows());
+      cloudReady=true;lastPull=Date.now();cloudErrorShown=false;
+      planCloudFlush();queueGeneration();
+      if(changed&&S.tab!=='focus'&&!document.querySelector('.modal.show'))refreshCurrent(true);
+      else if(changed&&['focus','mood'].includes(S.tab))refreshCurrent(true);
+      console.info('[Study Planner] Cloud Sync ready');
+    }catch(err){
+      console.warn('[Study Planner] Cloud initialization:',err);
+      if(!cloudErrorShown){cloudErrorShown=true;toast(tr('Cloud Sync is not active. Run SQL_SETUP_V7.sql in Supabase first.','Chưa bật đồng bộ. Hãy chạy SQL_SETUP_V7.sql trong Supabase trước.'),'warning',{delay:11000})}
+    }finally{cloudLoading=false}
+  }
+  async function pullCloud(){
+    if(!S.user||!cloudReady||cloudPulling||cloudLoading||cloudFlushing||document.hidden)return;
+    if(document.querySelector('.modal.show')||document.getElementById('spRulesModal'))return;
+    const active=document.activeElement;
+    if(active?.matches?.('input,textarea,[contenteditable]'))return;
+    cloudPulling=true;
+    try{
+      const changed=applyCloudRows(await allCloudRows());
+      lastPull=Date.now();
+      // Ordinary tasks already use Supabase. Poll only to pick up changes from
+      // other devices; never destroy the currently edited form or scroll state.
+      let tasksChanged=false;
+      if(Date.now()-lastTaskPull>18000){
+        const old=JSON.stringify(S.tasks);await baseLoad();
+        tasksChanged=JSON.stringify(S.tasks)!==old;lastTaskPull=Date.now();
+      }
+      if(changed||tasksChanged){
+        if(S.tab==='mood'&&moodDraft?.date===asIso(new Date())&&
+           $p('#spMoodNote')?.value!==moodDraft.note){
+          // Don't erase unsaved user text while a background refresh is running.
+          moodDraft.note=$p('#spMoodNote').value;
+          return;
+        }
+        refreshCurrent(true);
+      }
+      if(cloudPending.size)planCloudFlush();
+    }catch(err){console.warn('[Study Planner] Background sync:',err)}
+    finally{cloudPulling=false}
+  }
+  // Periodic synchronization works without enabling Realtime replication.
+  // On returning to the tab, refresh sooner if enough time has elapsed.
+  setInterval(()=>{
+    if(!S.user)return;
+    if(!cloudReady){if(!cloudLoading)void initializeCloud();return}
+    if(Date.now()-lastPull>22000)void pullCloud();
+    if(cloudPending.size&&!cloudFlushing)planCloudFlush();
+  },12000);
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&cloudReady&&Date.now()-lastPull>5000)void pullCloud();
+  });
   // Desktop alerts require HTTPS/localhost, a user-granted permission and OS
   // notifications enabled. They are NOT push: keep this page open for reminders.
   // A small, notification-only service worker is attempted first. Unlike the
@@ -203,7 +362,7 @@
     return rule.kind==='daily' || (rule.kind==='weekdays' && wd>=1 && wd<=5) || (rule.kind==='weekly' && rule.days.includes(wd));
   }
   async function generateUpcoming() {
-    if (!hydrateUser() || generating || !rules.some(r=>r.active)) return;
+    if (!hydrateUser() || !cloudReady || generating || !rules.some(r=>r.active)) return;
     generating=true;
     try {
       const today=asIso(new Date());
@@ -213,24 +372,33 @@
         const start=rule.start>today?rule.start:today;
         const horizon=asIso(shift(parseDate(start),55));
         if (rule.until && start>rule.until) continue;
+        // Reconcile prior occurrences from Supabase before generating new ones.
+        const {data:existing,error:existingError}=await sb.from('tasks').select('id,date').eq('sp_repeat_rule_id',rule.id);
+        if(existingError)throw existingError;
+        rule.generated=rule.generated||{};
+        for(const t of existing||[])rule.generated[t.date]=t.id;
         const rows=[], days=[];
         for (let dt=parseDate(start);asIso(dt)<=horizon;dt=shift(dt,1)) {
           const d=asIso(dt);
           if (!applies(rule,d) || Object.prototype.hasOwnProperty.call(rule.generated||{},d)) continue;
-          days.push(d); rows.push({title:rule.title,subject:rule.subject,date:d,t_start:rule.t_start||null,t_end:rule.t_end||null,note:rule.note||'',status:'todo'});
+          days.push(d); rows.push({title:rule.title,subject:rule.subject,date:d,t_start:rule.t_start||null,t_end:rule.t_end||null,note:rule.note||'',status:'todo',sp_repeat_rule_id:rule.id});
           if (rows.length>=60) break;
         }
         // Each day is persisted as an ordinary task, so the existing calendar,
         // checklist, statistics and backups continue to work without new SQL.
         if (rows.length) {
-          const {data,error}=await sb.from('tasks').insert(rows).select('id,date');
+          // A UNIQUE index on (sp_repeat_rule_id,date) ensures exactly one
+          // task per recurrence/day even if two devices generate together.
+          const {data,error}=await sb.from('tasks').upsert(rows,{
+            onConflict:'sp_repeat_rule_id,date',ignoreDuplicates:true
+          }).select('id,date');
           if (error) throw error;
           rule.generated=rule.generated||{};
           for(const row of data||[]){
             rule.generated[row.date]=row.id;
             if(rule.appearance)setStyle(row.id,rule.appearance);
           }
-          saveRules(); created+=(data||[]).length;
+          saveRules(rule); created+=(data||[]).length;
         }
       }
       if(created) {
@@ -405,12 +573,15 @@
     return {kind,days:[...document.querySelectorAll('#spRepeatDays input:checked')].map(x=>+x.value),until:$p('#spRepeatUntil')?.value||''};
   }
   async function saveWithRecurrence() {
+    if(!cloudReady){toast(tr('Cloud Sync is not ready. Please apply the SQL migration and reload.','Chưa kết nối đồng bộ. Hãy chạy SQL rồi tải lại trang.'),'warning');return true}
     const choice=repeatChoice();if(!choice)return false;
     const t=readForm();
     if(!t.title||!t.date)return false;
     if(choice.kind==='weekly'&&!choice.days.length){toast(tr('Choose at least one weekday','Hãy chọn ít nhất một thứ'),'warning');return true}
     if(choice.until&&choice.until<t.date){toast(tr('End date must be after the start date','Ngày kết thúc phải sau ngày bắt đầu'),'warning');return true}
     const {id,...fields}=t;
+    const ruleId='repeat_'+Date.now()+'_'+Math.random().toString(36).slice(2,12);
+    fields.sp_repeat_rule_id=ruleId;
     let baseId=id;
     try {
       let result;
@@ -420,8 +591,8 @@
       baseId=result.data?.id||id;
       setStyle(baseId,cleanStyle(styleDraft));
       pendingStyleSave=null;
-      const rule={id:'repeat_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),...fields,start:t.date,kind:choice.kind,days:choice.days,until:choice.until,active:true,appearance:cleanStyle(styleDraft),generated:{[t.date]:baseId}};
-      rules.push(rule);saveRules();
+      const rule={id:ruleId,...fields,start:t.date,kind:choice.kind,days:choice.days,until:choice.until,active:true,appearance:cleanStyle(styleDraft),generated:{[t.date]:baseId}};
+      rules.push(rule);saveRules(rule);
       mTask.hide();await baseLoad();refreshCurrent(true);queueGeneration();
       toast(tr('Recurring schedule saved ✨','Đã lưu lịch lặp lại ✨'),'success');
     }catch(err){toast(err.message,'danger')}
@@ -706,7 +877,7 @@
     const text=$p('#spMoodNote')?.value.trim()||'';
     void (async()=>{
       if(!await dialog(tr('Save your mood?','Xác nhận lưu cảm xúc?'),tr('Record how you felt today?','Lưu lại cảm xúc hôm nay?')))return;
-      moods[moodDraft.date]={mood:moodDraft.mood,note:text};saveMood();refreshCurrent(true);
+      moods[moodDraft.date]={mood:moodDraft.mood,note:text};saveMood(moodDraft.date);refreshCurrent(true);
       toast(tr('Mood saved 🌷','Đã lưu cảm xúc 🌷'),'success');
     })();
   }
@@ -715,7 +886,7 @@
     const question=rule.active?tr('Stop this schedule?','Dừng lịch lặp lại này?'):tr('Resume this schedule?','Tiếp tục lịch lặp lại?');
     const yes=await dialog(question,tr('Existing tasks will not be deleted.','Các công việc đã tạo sẽ không bị xóa.'));
     if(!yes)return;
-    rule.active=!rule.active;saveRules();showRules();
+    rule.active=!rule.active;saveRules(rule);showRules();
     if(rule.active)queueGeneration();
   }
   // Use one delegated handler to survive existing view rerenders.
