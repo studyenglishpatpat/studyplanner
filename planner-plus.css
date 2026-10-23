@@ -118,3 +118,10 @@ html[data-sp-theme="dark"] .sp-custom-fields input{background:#2a2537;color:#f1e
   .sp-custom-fields{gap:6px}
   .sp-focus-digits{font-size:28px}
 }
+
+/* V4 month correction: compact original grid with ONLY date + colored dots. */
+#view .mc{min-width:0;overflow:hidden}
+#view .mc small,#view .mc .sp-month-chip{display:none!important}
+#view .mc .dots{max-width:100%;gap:2px;align-items:center}
+#view .mc .dots .dot{flex:0 0 7px;width:7px;height:7px}
+#view .mc .dots .dot.sp-drag-handle{cursor:grab;touch-action:none}

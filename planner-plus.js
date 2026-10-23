@@ -31,30 +31,88 @@
   function saveRules(){put('rules',rules)}
   function saveMood(){put('moods',moods)}
   function saveFocus(){put('focus',focus)}
-  // Native OS/browser notifications require HTTPS/localhost and user permission.
-  // This does not use push: the website must remain open to detect elapsed time.
-  function nativeAlert(title,body,tag){
-    if(!('Notification' in window)||Notification.permission!=='granted')return false;
+  // Desktop alerts require HTTPS/localhost, a user-granted permission and OS
+  // notifications enabled. They are NOT push: keep this page open for reminders.
+  // A small, notification-only service worker is attempted first. Unlike the
+  // legacy Notification constructor, showNotification works across more devices.
+  // Its scope is isolated so it never intercepts the planner's requests/pages.
+  let workerPromise=null;
+  function notificationWorker(){
+    if(!('serviceWorker' in navigator)||!window.isSecureContext)return Promise.resolve(null);
+    if(!workerPromise)workerPromise=navigator.serviceWorker.register('./sp-notify-sw.js',{scope:'./sp-notify-only/'})
+      .then(reg=>reg).catch(err=>{console.warn('[Study Planner] Notification worker unavailable:',err);return null});
+    return workerPromise;
+  }
+  async function nativeAlert(title,body,tag){
+    if(!window.isSecureContext||!('Notification' in window)||Notification.permission!=='granted')return false;
+    const opts={body:String(body||''),icon:'favicon.png',tag:tag||undefined};
     try{
-      const n=new Notification(title,{body:String(body||''),icon:'favicon.png',tag:tag||undefined});
+      const reg=await notificationWorker();
+      if(reg&&typeof reg.showNotification==='function'){
+        await reg.showNotification(String(title),opts);return true;
+      }
+    }catch(err){console.warn('[Study Planner] Worker alert failed:',err)}
+    try{
+      const n=new Notification(String(title),opts);
       n.onclick=()=>{window.focus();n.close()};return true;
     }catch(err){console.warn('[Study Planner] Device alert unavailable:',err);return false}
   }
-  function requestNativeAlerts(){
-    if(!('Notification' in window)){
-      toast(tr('Your browser does not support desktop notifications.','Trình duyệt không hỗ trợ thông báo ngoài màn hình.'),'warning');return;
+  function notificationIssue(){
+    if(!window.isSecureContext)return tr('Open your website via HTTPS (or localhost).','Hãy mở web qua HTTPS (hoặc localhost).');
+    if(!('Notification' in window))return tr('This browser does not support system notifications.','Trình duyệt này không hỗ trợ thông báo hệ thống.');
+    if(Notification.permission==='denied')return tr('Notifications are blocked. Allow them in the browser site settings.','Trình duyệt đang chặn thông báo. Hãy cho phép trong cài đặt trang web.');
+    if(Notification.permission!=='granted')return tr('Please allow notifications for this website.','Hãy cho phép thông báo cho trang web này.');
+    return '';
+  }
+  async function requestNativeAlerts(){
+    const issue=notificationIssue();
+    if(issue&&(!window.isSecureContext||!('Notification' in window)||Notification.permission==='denied')){
+      toast(issue,'warning',{delay:9000});return;
     }
-    if(!window.isSecureContext){
-      toast(tr('Notifications require HTTPS or localhost.','Thông báo yêu cầu HTTPS hoặc localhost.'),'warning');return;
-    }
-    if(Notification.permission==='denied'){
-      toast(tr('Notifications are blocked. Please allow them in your browser site settings.','Thông báo đang bị chặn. Hãy bật quyền trong cài đặt trang web của trình duyệt.'),'warning');return;
-    }
-    // Called directly by a click so browsers accept the permission request.
-    Notification.requestPermission().then(permission=>{
-      toast(permission==='granted'?tr('Desktop notifications enabled 🔔','Đã bật thông báo ngoài màn hình 🔔'):tr('Notifications have not been enabled.','Chưa bật quyền thông báo.'),permission==='granted'?'success':'warning');
+    try{
+      // Only request permission as part of a real button click.
+      const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+      if(permission!=='granted'){
+        toast(notificationIssue()||tr('Notification permission was not granted.','Chưa cấp quyền thông báo.'),'warning',{delay:9000});return;
+      }
+      const ok=await nativeAlert(tr('Study Planner – test notification 🔔','Study Planner – thông báo thử 🔔'),
+        tr('If you can see this on your desktop, reminders are ready.','Nếu bạn thấy thông báo trên màn hình, chức năng nhắc nhở đã sẵn sàng.'),
+        'sp-permission-test');
+      toast(ok?tr('Test notification sent. Check Windows notifications.','Đã gửi thông báo thử. Hãy xem khu vực thông báo Windows.'):
+        tr('The browser could not display a notification. Check site and Windows notification settings.','Trình duyệt chưa hiển thị được thông báo. Hãy kiểm tra quyền của trang và cài đặt Windows.'),ok?'success':'warning',{delay:9000});
       if(S.tab==='focus')refreshCurrent(true);
-    }).catch(()=>toast(tr('Could not request notification permission.','Không xin được quyền thông báo.'),'warning'));
+    }catch(err){console.warn('[Study Planner] Notification permission:',err);
+      toast(tr('Could not enable notifications. Check your browser settings.','Không bật được thông báo. Hãy kiểm tra cài đặt trình duyệt.'),'warning',{delay:9000})}
+  }
+  function testNativeAlerts(){
+    if(notificationIssue()){toast(notificationIssue(),'warning',{delay:9000});return}
+    void nativeAlert(tr('Study Planner – test notification 🔔','Study Planner – thông báo thử 🔔'),
+      tr('This is a test notification from your study planner.','Đây là thông báo thử từ lịch học cá nhân.'),'sp-manual-test-'+Date.now())
+      .then(ok=>toast(ok?tr('Test notification sent.','Đã gửi thông báo thử.'):
+        tr('Could not send the test. Check Windows/Chrome notifications.','Không gửi được thông báo. Hãy kiểm tra thông báo Windows/Chrome.'),ok?'success':'warning'));
+  }
+  // Gentle chimes; no audio files, music, third-party libraries or autoplay.
+  // The first chime is triggered by the Start button to unlock Web Audio.
+  let focusAudio=null;
+  function focusChime(kind){
+    try{
+      const Audio=window.AudioContext||window.webkitAudioContext;
+      if(!Audio)return;
+      if(!focusAudio)focusAudio=new Audio();
+      if(focusAudio.state==='suspended')void focusAudio.resume().catch(()=>{});
+      const notes=kind==='start'?[[523.25,0,.11],[659.25,.13,.15]]:
+        [[659.25,0,.16],[783.99,.18,.16],[1046.5,.38,.32]];
+      const base=focusAudio.currentTime+.018;
+      for(const [hz,delay,length] of notes){
+        const osc=focusAudio.createOscillator(),gain=focusAudio.createGain();
+        osc.type='sine';osc.frequency.setValueAtTime(hz,base+delay);
+        gain.gain.setValueAtTime(.0001,base+delay);
+        gain.gain.exponentialRampToValueAtTime(.045,base+delay+.023);
+        gain.gain.exponentialRampToValueAtTime(.0001,base+delay+length);
+        osc.connect(gain);gain.connect(focusAudio.destination);
+        osc.start(base+delay);osc.stop(base+delay+length+.015);
+      }
+    }catch(err){console.warn('[Study Planner] Timer chime unavailable:',err)}
   }
   // Original check() already posts desktop reminders at task start / 5 min before.
   // Extend only the other important in-app reminders, avoiding duplicate popups.
@@ -164,10 +222,10 @@
       btn.classList.toggle('active',S.tab===id);
       anchor=btn;
     }
-    // The desktop header already has these two destinations. Add drawer-only
-    // links so narrow screens never lose access when the header is condensed.
+    // On phones, show ONLY Statistics in the drawer. The Manage control
+    // stays on the original desktop header, exactly as before.
+    list.querySelector('[data-plus-hn="manage"]')?.remove();
     for (const [id,icon,en,vi] of [
-      ['manage','grid-1x2-fill','Manage','Quản lý'],
       ['stats','bar-chart-line-fill','Statistics','Thống kê']
     ]) {
       let item=list.querySelector(`[data-plus-hn="${id}"]`);
@@ -177,7 +235,7 @@
         item.dataset.plusHn=id;list.append(item);
       }
       item.innerHTML=`<i class="bi bi-${icon}"></i><span>${tr(en,vi)}</span>`;
-      item.classList.toggle('active',id==='stats'?S.tab==='stats':S.tab!=='stats');
+      item.classList.toggle('active',S.tab==='stats');
     }
     if(!side.querySelector('.sp-side-header')) {
       const head=document.createElement('div');head.className='sp-side-header';head.innerHTML='<span>✦ STUDY PLANNER</span><button type="button" data-plus-close aria-label="Close menu"><i class="bi bi-x-lg"></i></button>';
@@ -297,7 +355,8 @@
     focus.sessions.unshift({at:new Date().toISOString(),minutes:Math.round(focus.duration/60),taskId:focus.taskId||''});
     focus.sessions=focus.sessions.slice(0,400);saveFocus();
     toast(tr('Focus session completed! 🌸','Đã hoàn thành phiên tập trung! 🌸'),'success');
-    nativeAlert(tr('Focus timer finished ⏰','Đồng hồ tập trung đã hết giờ ⏰'),
+    focusChime('finish');
+    void nativeAlert(tr('Focus timer finished ⏰','Đồng hồ tập trung đã hết giờ ⏰'),
       tr('Your focus session is complete. Great work!','Bạn đã hoàn thành phiên tập trung. Giỏi lắm!'),
       'sp-focus-finished-'+Date.now());
     if(S.tab==='focus')refreshCurrent(true);
@@ -319,7 +378,7 @@
     <div class="sp-focus-controls"><button class="btn btn-main px-4" data-plus="focus-toggle" id="spFocusToggle">${focus.running?tr('Pause','Tạm dừng'):focus.elapsed?tr('Resume','Tiếp tục'):tr('Start focus','Bắt đầu')}</button><button class="btn btn-soft" data-plus="focus-reset">${tr('Reset','Đặt lại')}</button><button class="btn btn-soft" data-plus="focus-finish">${tr('Finish','Kết thúc')}</button></div></div>
     <div class="sp-focus-card"><h6 class="fw-bold mb-3">${tr('Current task','Công việc đang tập trung')}</h6><select class="form-select mb-3" id="spFocusTask"><option value="">${tr('No linked task','Không gắn với việc cụ thể')}</option>${options.map(t=>`<option value="${safe(t.id)}" ${String(t.id)===String(focus.taskId)?'selected':''}>${safe(t.date+' · '+t.title)}</option>`).join('')}</select>
     <p class="sp-plus-mut">${tr('The timer records real focus time. Finishing a session does not automatically mark a task completed.','Đồng hồ ghi nhận thời gian thực tế. Kết thúc phiên không tự đánh dấu hoàn thành công việc.')}</p>
-    <div class="sp-notification-setting"><i class="bi bi-bell me-2"></i><span>${('Notification' in window&&Notification.permission==='granted')?tr('Desktop alerts are on','Thông báo ra màn hình đã bật'):tr('Get an alert when your timer finishes','Nhận thông báo khi hết giờ đếm ngược')}</span>${!('Notification' in window&&Notification.permission==='granted')?`<button type="button" class="btn btn-soft btn-sm" data-plus="native-permission">${tr('Enable','Bật')}</button>`:''}</div>
+    <div class="sp-notification-setting"><i class="bi bi-bell me-2"></i><span>${notificationIssue()||tr('Desktop notification permission granted','Đã cấp quyền thông báo từ trình duyệt')}</span>${('Notification' in window&&Notification.permission==='granted')?`<button type="button" class="btn btn-soft btn-sm" data-plus="native-test">${tr('Test alert','Thử thông báo')}</button>`:`<button type="button" class="btn btn-soft btn-sm" data-plus="native-permission">${tr('Enable & test','Bật và thử')}</button>`}</div>
     <div class="stat s2 text-start mt-3"><small>${tr('Focus time, past 7 days','Thời gian tập trung, 7 ngày gần đây')}</small><b>${n.reduce((s,x)=>s+x.minutes,0)} <span style="font-size:15px">min</span></b></div>
     <div class="stat s1 text-start mt-3"><small>${tr('Completed sessions, past 7 days','Số phiên hoàn thành, 7 ngày gần đây')}</small><b>${n.length}</b></div></div></div></div>`;
   }
@@ -395,10 +454,17 @@
     const weekCols=view.querySelectorAll('.col7');
     weekCols.forEach((col,i)=>col.dataset.spDropdate=asIso(shift(S.ws,i)));
     view.querySelectorAll('.mc[data-act="day"]').forEach(el=>{
-      if(el.dataset.spMonthAdded)return;
-      el.dataset.spDropdate=el.dataset.id;el.dataset.spMonthAdded='1';
-      const items=day(el.dataset.id).slice(0,2);
-      for(const t of items){const chip=document.createElement('span');chip.className='sp-month-chip sp-drag-handle';chip.dataset.spDrag=String(t.id);chip.title=tr('Drag to another date: ','Kéo sang ngày khác: ')+t.title;chip.textContent=t.title;el.append(chip)}
+      el.dataset.spDropdate=el.dataset.id;
+      // Month cells contain ONLY the original date number and status dots.
+      // Reuse the existing dots as drag handles; no task titles are inserted.
+      el.querySelectorAll('.sp-month-chip').forEach(chip=>chip.remove());
+      const items=day(el.dataset.id).slice(0,6);
+      el.querySelectorAll('.dots .dot').forEach((dot,i)=>{
+        const t=items[i];if(!t)return;
+        dot.dataset.spDrag=String(t.id);
+        dot.title=tr('Drag task: ','Kéo công việc: ')+t.title;
+        dot.classList.add('sp-drag-handle');
+      });
     });
     tickTaskClocks();
   }
@@ -493,7 +559,8 @@
       document.querySelectorAll('.sp-mood-choice').forEach(c=>c.classList.toggle('active',c.dataset.id===id));return;
     }
     if(a==='mood-save'){saveMoodDraft();return}
-    if(a==='native-permission'){requestNativeAlerts();return}
+    if(a==='native-permission'){void requestNativeAlerts();return}
+    if(a==='native-test'){testNativeAlerts();return}
     if(a==='custom-duration'){
       const ids=['spFocusHours','spFocusMinutes','spFocusSeconds'];
       const fields=ids.map(id=>$p('#'+id));
@@ -518,7 +585,7 @@
     }
     if(a==='focus-toggle'){
       finishIfElapsed();if(focus.running){focus.elapsed=focusElapsed();focus.running=false;focus.startedAt=0}
-      else{if(focus.elapsed>=focus.duration)focus.elapsed=0;focus.running=true;focus.startedAt=Date.now()}
+      else{if(focus.elapsed>=focus.duration)focus.elapsed=0;focusChime('start');focus.running=true;focus.startedAt=Date.now()}
       saveFocus();tickFocus();return;
     }
     if(a==='focus-reset'){
@@ -533,6 +600,12 @@
       saveFocus();refreshCurrent(true);toast(tr('Focus time recorded','Đã ghi nhận thời gian tập trung'));return;
     }
   });
+  // Reuse the existing account notification setting without modifying HTML.
+  document.addEventListener('click',e=>{
+    if(!e.target.closest('[data-act="perm"]'))return;
+    e.preventDefault();e.stopImmediatePropagation();
+    void requestNativeAlerts();
+  },true);
   document.addEventListener('change',e=>{
     if(e.target.id==='spFocusTask'){focus.taskId=e.target.value;saveFocus()}
   });
