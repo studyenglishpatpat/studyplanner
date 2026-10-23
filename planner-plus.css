@@ -180,3 +180,55 @@ html[data-sp-theme="dark"] #view .rw.sp-priority-task,html[data-sp-theme="dark"]
 html[data-sp-theme="dark"] .sp-priority-mark{color:#ffcf7a}
 @media(max-width:380px){.sp-color-options{gap:7px}.sp-color-option{width:30px;height:30px}}
 @media(max-width:800px) and (prefers-reduced-motion:no-preference){#view #cStatus{animation:sp-doughnut-reveal .75s ease-out both}@keyframes sp-doughnut-reveal{from{opacity:.3;transform:scale(.88)}to{opacity:1;transform:scale(1)}}}
+
+/* V8 — compact Bootstrap Icon picker next to Priority (V7 schema unchanged). */
+.sp-task-quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;min-width:0}
+.sp-task-quick-actions .sp-priority-toggle{width:100%;min-width:0;margin:0}
+.sp-icon-toggle{display:flex;gap:8px;align-items:center;justify-content:center;min-width:0;min-height:38px;padding:6px 10px;border:1px solid #ded5ed;border-radius:12px;background:#fff;color:#776293;font-size:13px;font-weight:700;cursor:pointer}
+.sp-icon-toggle.selected{background:#eee5fb;border-color:#a68bcf;color:#634c90;box-shadow:0 0 0 1px #ad97d555}
+.sp-icon-toggle .sp-icon-preview{font-size:18px;flex:none}
+.sp-icon-toggle .sp-icon-chevron{font-size:12px;opacity:.7}
+.sp-icon-toggle span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-icon-toggle:focus-visible,.sp-icon-tile:focus-visible,.sp-icon-categories button:focus-visible,.sp-icon-close:focus-visible{outline:3px solid #a48bd7;outline-offset:3px}
+.sp-task-icon{font-size:1.05em;color:var(--pu);margin-right:7px;display:inline-block;text-decoration:none!important;vertical-align:-.07em}
+.sp-custom-task .sp-task-icon{color:color-mix(in srgb,var(--sp-task-accent) 75%,#3f3753)}
+.sp-icon-overlay{position:fixed;inset:0;z-index:3500;background:#21192d9e;display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(3px)}
+.sp-icon-dialog{box-sizing:border-box;background:#fffdff;color:#3d3659;width:min(555px,100%);max-height:min(90dvh,810px);display:flex;flex-direction:column;gap:10px;border-radius:20px;padding:18px;box-shadow:0 18px 55px #1e153f4d;border:1px solid #e9e0f5;overflow:hidden}
+.sp-icon-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.sp-icon-header h5{margin:0 0 3px;font-size:18px;font-weight:750}
+.sp-icon-header small{font-size:12px;color:#87769d}
+.sp-icon-close{display:grid;place-items:center;width:31px;height:31px;flex:none;border:0;border-radius:9px;color:#6f598f;background:#f1ebfb}
+.sp-icon-search{display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid #ded5ef;border-radius:12px;background:#f9f6fe;color:#8675a0;min-height:40px}
+.sp-icon-search input{border:0;outline:0;background:transparent;color:#3d3659;font:inherit;width:100%;min-width:0;font-size:14px}
+.sp-icon-search input::placeholder{color:#9387a2}
+.sp-icon-categories{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;flex:none;scrollbar-width:thin}
+.sp-icon-categories button{flex:none;border-radius:100px;border:1px solid #e4dcf1;color:#715f8d;background:#f9f6fd;padding:6px 11px;font-size:12px;font-weight:650;cursor:pointer}
+.sp-icon-categories button.active{background:#8670b5;color:#fff;border-color:#8670b5}
+.sp-icon-count{font-size:11px;color:#8c7da1;text-align:right;margin-top:-3px}
+.sp-icon-results{min-height:120px;overflow-y:auto;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));align-content:start;gap:7px;padding:5px 3px 8px;scrollbar-width:thin}
+.sp-icon-tile{display:grid;place-items:center;aspect-ratio:1/1;min-width:0;border:1px solid #e5ddf0;border-radius:12px;background:#f8f5fd;color:#68578a;font-size:22px;cursor:pointer;transition:background .15s,transform .15s,border-color .15s}
+.sp-icon-tile:hover{background:#eee4fb;transform:translateY(-1px);border-color:#ad95d5}
+.sp-icon-tile.selected{border:2px solid #8a6bbf;background:#e8dcfb;color:#65499a;box-shadow:0 0 0 1px #bea6e6}
+.sp-icon-empty{grid-column:1/-1;text-align:center;padding:22px;color:#8b80a3;font-size:13px}
+.sp-icon-footer{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #ece5f5;padding-top:12px}
+html[data-sp-theme="dark"] .sp-icon-toggle{background:#3d354d;color:#dccaf2;border-color:#605472}
+html[data-sp-theme="dark"] .sp-icon-toggle.selected{background:#594779;color:#f2e8ff;border-color:#bd9af0}
+html[data-sp-theme="dark"] .sp-icon-dialog{background:#2a2537;color:#f2eaff;border-color:#58496b}
+html[data-sp-theme="dark"] .sp-icon-header small,html[data-sp-theme="dark"] .sp-icon-count{color:#c0afd6}
+html[data-sp-theme="dark"] .sp-icon-close,html[data-sp-theme="dark"] .sp-icon-search{background:#373047;color:#d9cbed;border-color:#655478}
+html[data-sp-theme="dark"] .sp-icon-search input{color:#fff}
+html[data-sp-theme="dark"] .sp-icon-search input::placeholder{color:#b5a6c9}
+html[data-sp-theme="dark"] .sp-icon-categories button{background:#3c344f;color:#e4d6f5;border-color:#645576}
+html[data-sp-theme="dark"] .sp-icon-categories button.active{background:#ad89e1;color:#231b34;border-color:#cfb0ff}
+html[data-sp-theme="dark"] .sp-icon-tile{background:#393149;color:#e6d9f7;border-color:#5e506e}
+html[data-sp-theme="dark"] .sp-icon-tile:hover{background:#524166;border-color:#aa87d0}
+html[data-sp-theme="dark"] .sp-icon-tile.selected{background:#69518b;color:#fff;border-color:#dfc5ff}
+html[data-sp-theme="dark"] .sp-icon-footer{border-color:#554761}
+html[data-sp-theme="dark"] .sp-task-icon{color:#d4bef3}
+@media(max-width:600px){
+ .sp-icon-dialog{padding:14px 12px;max-height:calc(100dvh - 24px);border-radius:17px}
+ .sp-icon-results{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+ .sp-icon-tile{font-size:20px;border-radius:10px}
+ .sp-icon-header h5{font-size:16px}
+}
+@media(max-width:365px){.sp-icon-results{grid-template-columns:repeat(5,minmax(0,1fr))}.sp-task-quick-actions{gap:6px}.sp-icon-toggle{padding:5px;font-size:12px}}

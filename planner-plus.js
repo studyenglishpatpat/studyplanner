@@ -1,5 +1,5 @@
 /* STUDY PLANNER PLUS — optional add-on. Base tasks/auth/UI remain untouched.
-   V7: personalized data synchronizes through Supabase with a local backup. */
+   V8: Bootstrap task icon picker, synchronized through existing V7 Supabase taskstyles rows. */
 (() => {
   'use strict';
   if (!document.getElementById('mTask') || typeof S === 'undefined') return;
@@ -28,14 +28,28 @@
     ['orchid','#BF92BE','Orchid','Tím hồng']
   ];
   const PALETTE_MAP = new Map(PALETTE.map(([id,hex])=>[id,hex]));
-  let taskStyles={}, styleDraft={color:'',priority:false}, preservedStyleDraft=null, pendingStyleSave=null;
-  const cleanStyle = v => ({color:PALETTE_MAP.has(v?.color)?v.color:'',priority:!!v?.priority});
+  // Curated Bootstrap Icons 1.11.3 names (no icon upload, library or extra API).
+  // Named groups keep the picker searchable while leaving the task form compact.
+  const ICON_GROUPS = [
+    {id:'study',en:'Study',vi:'Học tập',tags:'học bài sách bài tập ngoại ngữ trường học khóa học',names:`book book-fill book-half book-history bookmark bookmark-fill bookmark-check bookmark-star journal journal-bookmark journal-code journal-text journal-richtext mortarboard mortarboard-fill pencil pencil-fill pencil-square pen pen-fill highlighter eraser rulers backpack backpack-fill calculator type translate alphabet-uppercase clipboard clipboard-check clipboard2-check clipboard2-data file-earmark-text file-earmark-pdf file-earmark-spreadsheet file-earmark-code file-earmark-image folder folder2-open lightbulb lightbulb-fill award award-fill trophy trophy-fill patch-check patch-check-fill graph-up-arrow diagram-3 stack`.split(' ')},
+    {id:'work',en:'Planning',vi:'Kế hoạch',tags:'việc cần làm lịch họp deadline thời gian nhắc nhở',names:`calendar calendar-check calendar-event calendar-week calendar2-week calendar2-check calendar-date calendar-range calendar3 clock clock-history alarm stopwatch hourglass hourglass-split check-circle check2-circle check2-square list-check list-task kanban columns-gap boxes inboxes archive flag flag-fill star star-fill sticky sticky-fill clipboard-data folder-check folder-plus file-check file-earmark-check pin pin-angle pin-angle-fill bell bell-fill megaphone chat-dots chat-square-text send envelope envelope-open printer download upload cloud-arrow-up cloud-check database table sort-down funnel filters`.split(' ')},
+    {id:'creative',en:'Creative & Tech',vi:'Sáng tạo & Công nghệ',tags:'thiết kế code âm nhạc hình ảnh máy tính công nghệ',names:`palette brush brush-fill paint-bucket eyedropper camera camera-fill camera-video images image image-fill music-note music-note-beamed music-player headphones mic mic-fill film play-circle play-circle-fill pause-circle volume-up speaker vinyl disc boombox controller joystick code code-slash terminal terminal-fill braces bug git github cpu motherboard memory mouse keyboard laptop pc-display tablet phone wifi bluetooth robot lightning lightning-charge`.split(' ')},
+    {id:'life',en:'Daily Life',vi:'Đời sống',tags:'gia đình nhà cửa mua sắm sinh hoạt du lịch đi chơi thời tiết',names:`house house-fill heart heart-fill gift gift-fill cake balloon cup-hot cup-hot-fill cup-straw basket bag bag-fill cart wallet credit-card cash piggy-bank coin currency-dollar bicycle car-front bus-front train-front airplane airplane-engines geo-alt geo-alt-fill map compass signpost suitcase umbrella umbrella-fill sun moon stars cloud-sun cloud-moon cloud-rain cloud-snow snow thermometer wind droplet water flower1 flower2 flower3 tree tree-fill recycle globe globe-americas`.split(' ')},
+    {id:'wellness',en:'Health & Mood',vi:'Sức khỏe & Cảm xúc',tags:'chạy bộ thể dục thể thao tâm trạng sức khỏe ngủ nghỉ',names:`person person-fill people people-fill person-walking person-running person-arms-up activity heart-pulse heart-pulse-fill bandaid capsule prescription2 hospital h-square cross cross-circle fire speedometer yin-yang emoji-smile emoji-laughing emoji-frown emoji-heart-eyes emoji-sunglasses emoji-neutral emoji-wink emoji-smile-upside-down emoji-angry emoji-dizzy emoji-expressionless emoji-kiss emoji-tear emoji-surprise emoji-grimace emoji-smile-fill emoji-laughing-fill emoji-frown-fill`.split(' ')},
+    {id:'symbols',en:'Symbols',vi:'Biểu tượng',tags:'ưu tiên mục tiêu dấu hiệu công cụ công việc',names:`arrow-repeat arrow-clockwise arrow-through-heart arrow-left-right arrow-up-right-circle plus-circle plus-circle-fill dash-circle x-circle question-circle info-circle exclamation-circle shield-check shield-fill-check lock unlock key gear gear-fill sliders toggles toggle-on toggle-off qr-code link-45deg paperclip bookmark-heart tags tags-fill magic gem diamond diamond-fill circle circle-fill square square-fill triangle triangle-fill hexagon hexagon-fill bullseye target`.split(' ')}
+  ];
+  const ICONS = [...new Set(ICON_GROUPS.flatMap(g=>g.names))];
+  const ICON_SET = new Set(ICONS);
+  // Validation is intentional: never interpolate arbitrary cloud-stored text as a CSS class.
+  const cleanStyle = v => ({color:PALETTE_MAP.has(v?.color)?v.color:'',priority:!!v?.priority,icon:ICON_SET.has(v?.icon)?v.icon:''});
+  let taskStyles={}, styleDraft={color:'',priority:false,icon:''}, preservedStyleDraft=null, pendingStyleSave=null;
+  let iconPickerGroup='all',iconPickerQuery='',iconPickerReturnFocus=null;
   function saveTaskStyles(id){put('taskstyles',taskStyles);if(id!=null)stageCloud('taskstyles',String(id),cleanStyle(taskStyles[String(id)]))}
   function styleFor(id){return cleanStyle(taskStyles[String(id)])}
   function setStyle(id,appearance){
     if(id==null)return;
     const cfg=cleanStyle(appearance);
-    if(cfg.color||cfg.priority)taskStyles[String(id)]=cfg;
+    if(cfg.color||cfg.priority||cfg.icon)taskStyles[String(id)]=cfg;
     else delete taskStyles[String(id)];
     saveTaskStyles(id);
   }
@@ -132,7 +146,7 @@
       if(row.category==='moods')serverMoods[row.item_key]=row.payload;
       if(row.category==='taskstyles'){
         const style=cleanStyle(row.payload);
-        if(style.color||style.priority)serverStyles[row.item_key]=style;
+        if(style.color||style.priority||style.icon)serverStyles[row.item_key]=style;
       }
       if(row.category==='focus'&&row.item_key==='current')serverFocus=row.payload;
     }
@@ -146,7 +160,7 @@
       if(row.category==='focus')serverFocus=row.payload;
       if(row.category==='taskstyles'){
         const style=cleanStyle(row.payload);
-        if(style.color||style.priority)serverStyles[row.item_key]=style;
+        if(style.color||style.priority||style.icon)serverStyles[row.item_key]=style;
         else delete serverStyles[row.item_key];
       }
     }
@@ -531,7 +545,7 @@
     });
   }
   function renderStyleForm(task){
-    const existing=task?.id?styleFor(task.id):{color:'',priority:false};
+    const existing=task?.id?styleFor(task.id):{color:'',priority:false,icon:''};
     styleDraft=preservedStyleDraft&&S.draft===task?{...preservedStyleDraft}:{...existing};
     preservedStyleDraft=null;
     let panel=$p('#spTaskStyle');
@@ -542,7 +556,10 @@
     panel.innerHTML=`<div class="sp-task-style-heading"><i class="bi bi-palette me-1"></i>${tr('Task color','Màu công việc')} <small>${tr('(optional)','(không bắt buộc)')}</small></div>
       <div class="sp-color-options" role="group" aria-label="${tr('Task color options','Các màu công việc')}">
       ${buttons.map(([id,hex,name])=>`<button type="button" class="sp-color-option ${id?'':'sp-color-default'} ${styleDraft.color===id?'selected':''}" style="${hex?'--sp-swatch:'+hex+';':''}" data-plus="style-color" data-id="${id}" aria-pressed="${styleDraft.color===id}" aria-label="${safe(name)}" title="${safe(name)}"><i class="bi bi-check-lg"></i></button>`).join('')}</div>
-      <button type="button" id="spPriorityToggle" class="sp-priority-toggle ${styleDraft.priority?'selected':''}" data-plus="style-priority" aria-pressed="${styleDraft.priority}"><i class="bi bi-${styleDraft.priority?'star-fill':'star'}"></i><span>${tr('Mark as priority','Đánh dấu ưu tiên')}</span></button>`;
+      <div class="sp-task-quick-actions">
+        <button type="button" id="spPriorityToggle" class="sp-priority-toggle ${styleDraft.priority?'selected':''}" data-plus="style-priority" aria-pressed="${styleDraft.priority}"><i class="bi bi-${styleDraft.priority?'star-fill':'star'}"></i><span>${tr('Priority','Ưu tiên')}</span></button>
+        <button type="button" id="spIconToggle" class="sp-icon-toggle ${styleDraft.icon?'selected':''}" data-plus="icon-open" aria-haspopup="dialog" title="${tr('Choose a Bootstrap icon for this task','Chọn biểu tượng Bootstrap cho công việc')}"><i class="bi bi-${styleDraft.icon||'grid-3x3-gap'} sp-icon-preview"></i><span>${tr('Task icon','Biểu tượng')}</span><i class="bi bi-chevron-down sp-icon-chevron"></i></button>
+      </div>`;
   }
   function refreshStyleForm(){
     $p('#spTaskStyle')?.querySelectorAll('[data-plus="style-color"]').forEach(b=>{
@@ -554,7 +571,69 @@
       star.setAttribute('aria-pressed',String(styleDraft.priority));
       star.querySelector('i').className='bi bi-'+(styleDraft.priority?'star-fill':'star');
     }
+    const iconBtn=$p('#spIconToggle');if(iconBtn){
+      iconBtn.classList.toggle('selected',!!styleDraft.icon);
+      iconBtn.querySelector('.sp-icon-preview').className='bi bi-'+(styleDraft.icon||'grid-3x3-gap')+' sp-icon-preview';
+      iconBtn.setAttribute('aria-label',styleDraft.icon?tr('Selected icon: ','Biểu tượng đã chọn: ')+styleDraft.icon:tr('Choose task icon','Chọn biểu tượng'));
+    }
   }
+  // Picker lives in an overlay so the Add/Edit form gains no additional height.
+  // The selection changes the form draft only; the existing Save + confirmation
+  // flow performs the actual Supabase write through the V7 taskstyles category.
+  function closeIconPicker(){
+    $p('#spIconPicker')?.remove();
+    if(iconPickerReturnFocus?.isConnected)iconPickerReturnFocus.focus({preventScroll:true});
+    iconPickerReturnFocus=null;
+  }
+  function iconPickerTiles(){
+    const box=$p('#spIconResults'),count=$p('#spIconCount');if(!box)return;
+    const words=iconPickerQuery.trim().toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const normalized=x=>x.toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const available=ICON_GROUPS.filter(g=>iconPickerGroup==='all'||g.id===iconPickerGroup)
+      .flatMap(g=>g.names.map(name=>({name,tags:g.tags,group:g.en+' '+g.vi})));
+    const matches=[...new Map(available.filter(x=>!words||normalized(x.name+' '+x.tags+' '+x.group).includes(words)).map(x=>[x.name,x])).values()];
+    if(count)count.textContent=matches.length+' / '+ICONS.length;
+    box.innerHTML=matches.length?matches.map(x=>`<button type="button" class="sp-icon-tile ${x.name===styleDraft.icon?'selected':''}" data-plus="icon-select" data-id="${x.name}" aria-pressed="${x.name===styleDraft.icon}" aria-label="${x.name.replace(/-/g,' ')}" title="${x.name.replace(/-/g,' ')}"><i class="bi bi-${x.name}" aria-hidden="true"></i></button>`).join('')
+      :`<p class="sp-icon-empty">${tr('No matching icons. Try another keyword.','Không tìm thấy biểu tượng. Hãy thử từ khóa khác.')}</p>`;
+    $p('#spIconCategories')?.querySelectorAll('button').forEach(b=>{
+      b.classList.toggle('active',b.dataset.id===iconPickerGroup);
+      b.setAttribute('aria-pressed',String(b.dataset.id===iconPickerGroup));
+    });
+  }
+  function openIconPicker(){
+    if(!$p('#spTaskStyle'))return;
+    closeIconPicker();iconPickerReturnFocus=$p('#spIconToggle');
+    iconPickerGroup='all';iconPickerQuery='';
+    const overlay=document.createElement('div');overlay.id='spIconPicker';overlay.className='sp-icon-overlay';
+    overlay.innerHTML=`<section class="sp-icon-dialog" role="dialog" aria-modal="true" aria-labelledby="spIconPickerTitle">
+      <div class="sp-icon-header"><div><h5 id="spIconPickerTitle"><i class="bi bi-grid-3x3-gap me-2"></i>${tr('Choose a task icon','Chọn biểu tượng công việc')}</h5><small>${tr('Bootstrap Icons · synced to your account','Bootstrap Icons · đồng bộ theo tài khoản')}</small></div><button type="button" class="sp-icon-close" data-plus="icon-close" aria-label="${tr('Close','Đóng')}"><i class="bi bi-x-lg"></i></button></div>
+      <label class="sp-icon-search"><i class="bi bi-search"></i><input id="spIconSearch" type="search" autocomplete="off" placeholder="${tr('Search e.g. book, heart, music…','Tìm sách, trái tim, âm nhạc…')}" aria-label="${tr('Search icons','Tìm biểu tượng')}"></label>
+      <div id="spIconCategories" class="sp-icon-categories" role="group" aria-label="${tr('Icon categories','Nhóm biểu tượng')}">
+        ${[{id:'all',en:'All',vi:'Tất cả'},...ICON_GROUPS].map(g=>`<button type="button" data-plus="icon-category" data-id="${g.id}" aria-pressed="${g.id==='all'}">${locale()==='vi'?g.vi:g.en}</button>`).join('')}
+      </div>
+      <div class="sp-icon-count" id="spIconCount"></div>
+      <div class="sp-icon-results" id="spIconResults" role="group" aria-label="${tr('Available icons','Biểu tượng có sẵn')}"></div>
+      <div class="sp-icon-footer"><button type="button" class="btn btn-soft btn-sm" data-plus="icon-clear"><i class="bi bi-slash-circle me-1"></i>${tr('No icon','Không dùng icon')}</button><button type="button" class="btn btn-main btn-sm" data-plus="icon-close">${tr('Done','Xong')}</button></div>
+    </section>`;
+    overlay.addEventListener('click',e=>{if(e.target===overlay)closeIconPicker()});
+    document.body.append(overlay);
+    iconPickerTiles();$p('#spIconSearch')?.focus();
+  }
+  document.addEventListener('input',e=>{
+    if(e.target?.id==='spIconSearch'){iconPickerQuery=e.target.value;iconPickerTiles()}
+  });
+  document.addEventListener('keydown',e=>{
+    if(!$p('#spIconPicker'))return;
+    if(e.key==='Escape'){e.stopPropagation();e.preventDefault();closeIconPicker()}
+    if(e.key==='Tab'){
+      const elements=[...document.querySelectorAll('#spIconPicker button:not(:disabled),#spIconPicker input:not(:disabled)')]
+        .filter(b=>b.getClientRects().length);
+      const first=elements[0],last=elements.at(-1);
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}
+    }
+  },true);
+  $p('#mTask')?.addEventListener('hidden.bs.modal',closeIconPicker);
   // Capture only an approved Save click; enhancements.js owns confirmation.
   // This also covers repeated tasks, which the Plus handler saves separately.
   document.addEventListener('click',e=>{
@@ -714,6 +793,13 @@
         star.title=tr('Priority task','Việc ưu tiên');star.setAttribute('aria-label',star.title);
         titleTarget.prepend(star);
       }
+    }
+    if(appearance.icon&&titleTarget&&!titleTarget.querySelector('.sp-task-icon')){
+      const icon=document.createElement('i');
+      icon.className='bi bi-'+appearance.icon+' sp-task-icon';
+      icon.title=tr('Task icon: ','Biểu tượng: ')+appearance.icon.replace(/-/g,' ');
+      icon.setAttribute('aria-hidden','true');
+      titleTarget.prepend(icon);
     }
   }
   function decorateTasks(){
@@ -895,6 +981,11 @@
     const a=el.dataset.plus,id=el.dataset.id;
     if(a==='style-color'){styleDraft.color=PALETTE_MAP.has(id)?id:'';refreshStyleForm();return}
     if(a==='style-priority'){styleDraft.priority=!styleDraft.priority;refreshStyleForm();return}
+    if(a==='icon-open'){openIconPicker();return}
+    if(a==='icon-close'){closeIconPicker();return}
+    if(a==='icon-clear'){styleDraft.icon='';refreshStyleForm();closeIconPicker();return}
+    if(a==='icon-select'){styleDraft.icon=ICON_SET.has(id)?id:'';refreshStyleForm();closeIconPicker();return}
+    if(a==='icon-category'){iconPickerGroup=id==='all'||ICON_GROUPS.some(g=>g.id===id)?id:'all';iconPickerTiles();return}
     if(a==='rules'){showRules();return}
     if(a==='rules-close'){ $p('#spRulesModal')?.remove();return }
     if(a==='rule-toggle'){await stopRule(id);return}
