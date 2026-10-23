@@ -91,8 +91,8 @@
       .then(ok=>toast(ok?tr('Test notification sent.','Đã gửi thông báo thử.'):
         tr('Could not send the test. Check Windows/Chrome notifications.','Không gửi được thông báo. Hãy kiểm tra thông báo Windows/Chrome.'),ok?'success':'warning'));
   }
-  // Gentle chimes; no audio files, music, third-party libraries or autoplay.
-  // The first chime is triggered by the Start button to unlock Web Audio.
+  // V5: Longer and clearer start/end melodies, synthesized locally by Web Audio.
+  // Audio starts only from the user's Focus button; no remote audio resources.
   let focusAudio=null;
   function focusChime(kind){
     try{
@@ -100,17 +100,27 @@
       if(!Audio)return;
       if(!focusAudio)focusAudio=new Audio();
       if(focusAudio.state==='suspended')void focusAudio.resume().catch(()=>{});
-      const notes=kind==='start'?[[523.25,0,.11],[659.25,.13,.15]]:
-        [[659.25,0,.16],[783.99,.18,.16],[1046.5,.38,.32]];
-      const base=focusAudio.currentTime+.018;
-      for(const [hz,delay,length] of notes){
-        const osc=focusAudio.createOscillator(),gain=focusAudio.createGain();
-        osc.type='sine';osc.frequency.setValueAtTime(hz,base+delay);
-        gain.gain.setValueAtTime(.0001,base+delay);
-        gain.gain.exponentialRampToValueAtTime(.045,base+delay+.023);
-        gain.gain.exponentialRampToValueAtTime(.0001,base+delay+length);
-        osc.connect(gain);gain.connect(focusAudio.destination);
-        osc.start(base+delay);osc.stop(base+delay+length+.015);
+      const finished=kind==='finish';
+      const base=focusAudio.currentTime+.035;
+      // Start: two melodic rings (about 1.7s). Finish: four rings (about 5s).
+      // Limit peaks; actual loudness still follows browser/Windows device volume.
+      const motif=finished?[659.25,783.99,1046.5]:[523.25,659.25,783.99];
+      const loops=finished?4:2;
+      const step=finished?.29:.27, cycle=finished?1.24:.84;
+      const volume=finished?.15:.135;
+      for(let repeat=0;repeat<loops;repeat++){
+        motif.forEach((hz,n)=>{
+          const at=base+repeat*cycle+n*step;
+          const length=finished?.33:.29;
+          const osc=focusAudio.createOscillator(),gain=focusAudio.createGain();
+          osc.type='triangle';osc.frequency.setValueAtTime(hz,at);
+          gain.gain.setValueAtTime(.0001,at);
+          gain.gain.exponentialRampToValueAtTime(volume,at+.032);
+          gain.gain.setValueAtTime(volume,at+length-.11);
+          gain.gain.exponentialRampToValueAtTime(.0001,at+length);
+          osc.connect(gain);gain.connect(focusAudio.destination);
+          osc.start(at);osc.stop(at+length+.01);
+        });
       }
     }catch(err){console.warn('[Study Planner] Timer chime unavailable:',err)}
   }
@@ -504,24 +514,69 @@
     });
   }
   const originalRender=window.render;
+  // V5: The base planner rerenders every 30 seconds and after saving a task.
+  // Remember horizontal/vertical scroll before it replaces the view so Week
+  // (especially Sunday) and Checklist do not jump back to their first columns.
+  let lastRenderedTab=null;
+  const tabScroll=new Map();
+  function captureViewScroll(){
+    const root=$p('#view');
+    return {week:root?.querySelector('.week')?.scrollLeft||0,
+      list:root?.querySelector('.table-responsive')?.scrollLeft||0,
+      y:window.scrollY||document.scrollingElement?.scrollTop||0};
+  }
+  function restoreViewScroll(position,vertical){
+    if(!position)return;
+    const root=$p('#view');
+    const week=root?.querySelector('.week');
+    const list=root?.querySelector('.table-responsive');
+    if(week)week.scrollLeft=position.week;
+    if(list)list.scrollLeft=position.list;
+    if(vertical && document.scrollingElement)document.scrollingElement.scrollTop=position.y;
+  }
+  function compactMobileChart(){
+    if(S.tab!=='stats'||window.innerWidth>800||!Array.isArray(S.ch))return;
+    const chart=S.ch.find(c=>c?.canvas?.id==='cStatus');
+    if(!chart)return;
+    // More vertical space and tighter, readable legend on narrow viewports.
+    const legend=chart.options.plugins?.legend;
+    if(legend){
+      legend.position='bottom';
+      legend.labels={...legend.labels,boxWidth:12,boxHeight:12,padding:10,font:{size:11}};
+    }
+    chart.options.animation=false;
+    chart.resize();chart.update('none');
+  }
   function refreshCurrent(force){
     if(force)delete $p('#view')?.dataset.spPlusTab;
     window.render();
   }
   window.render=function(...args){
     hydrateUser();buildNav();
+    // DOM still belongs to the previously rendered tab at this point.
+    if(lastRenderedTab)tabScroll.set(lastRenderedTab,captureViewScroll());
+    const staying=lastRenderedTab===S.tab;
+    const restore=staying?tabScroll.get(S.tab):null;
     const view=$p('#view');
     if(S.tab==='focus'||S.tab==='mood'){
       if(view.dataset.spPlusTab!==S.tab){
         originalRender.apply(this,args);
         view.dataset.spPlusTab=S.tab;
         view.innerHTML=S.tab==='focus'?focusView():moodView();
-      } else head();
+      }else head();
       buildNav();tickFocus();
     }else{
       delete view.dataset.spPlusTab;
       originalRender.apply(this,args);
       buildNav();decorateTasks();
+      compactMobileChart();
+    }
+    lastRenderedTab=S.tab;
+    // Restore now (before paint), then once again after browser layout settles.
+    if(restore){
+      restoreViewScroll(restore,true);
+      const restoredTab=S.tab;
+      requestAnimationFrame(()=>{if(S.tab===restoredTab&&lastRenderedTab===restoredTab)restoreViewScroll(restore,true)});
     }
   };
   function saveMoodDraft(){

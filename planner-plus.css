@@ -125,3 +125,19 @@ html[data-sp-theme="dark"] .sp-custom-fields input{background:#2a2537;color:#f1e
 #view .mc .dots{max-width:100%;gap:2px;align-items:center}
 #view .mc .dots .dot{flex:0 0 7px;width:7px;height:7px}
 #view .mc .dots .dot.sp-drag-handle{cursor:grab;touch-action:none}
+
+
+/* V5 surgical fixes: distinct dark-mode selected weekdays and mobile chart sizing. */
+html[data-sp-theme="dark"] .sp-rpt-day:has(input:checked){
+  background:#8160b7!important;
+  border-color:#cfb6ff!important;
+  color:#fff!important;
+  box-shadow:0 0 0 2px #cab0ff6b,inset 0 0 0 1px #e7dbff!important;
+}
+html[data-sp-theme="dark"] .sp-rpt-day:has(input:checked)::before{content:"✓";font-size:11px;margin-right:3px;font-weight:800}
+.sp-rpt-day:focus-within{outline:2px solid #bda2f2;outline-offset:2px}
+@media(max-width:800px){
+  #view .card:has(#cStatus){min-width:0;overflow:hidden}
+  #view div:has(> #cStatus){height:clamp(340px,95vw,390px)!important;max-width:100%;min-width:0;position:relative}
+  #view #cStatus{display:block;max-width:100%!important}
+}
