@@ -31,6 +31,63 @@
   function saveRules(){put('rules',rules)}
   function saveMood(){put('moods',moods)}
   function saveFocus(){put('focus',focus)}
+  // Native OS/browser notifications require HTTPS/localhost and user permission.
+  // This does not use push: the website must remain open to detect elapsed time.
+  function nativeAlert(title,body,tag){
+    if(!('Notification' in window)||Notification.permission!=='granted')return false;
+    try{
+      const n=new Notification(title,{body:String(body||''),icon:'favicon.png',tag:tag||undefined});
+      n.onclick=()=>{window.focus();n.close()};return true;
+    }catch(err){console.warn('[Study Planner] Device alert unavailable:',err);return false}
+  }
+  function requestNativeAlerts(){
+    if(!('Notification' in window)){
+      toast(tr('Your browser does not support desktop notifications.','Trình duyệt không hỗ trợ thông báo ngoài màn hình.'),'warning');return;
+    }
+    if(!window.isSecureContext){
+      toast(tr('Notifications require HTTPS or localhost.','Thông báo yêu cầu HTTPS hoặc localhost.'),'warning');return;
+    }
+    if(Notification.permission==='denied'){
+      toast(tr('Notifications are blocked. Please allow them in your browser site settings.','Thông báo đang bị chặn. Hãy bật quyền trong cài đặt trang web của trình duyệt.'),'warning');return;
+    }
+    // Called directly by a click so browsers accept the permission request.
+    Notification.requestPermission().then(permission=>{
+      toast(permission==='granted'?tr('Desktop notifications enabled 🔔','Đã bật thông báo ngoài màn hình 🔔'):tr('Notifications have not been enabled.','Chưa bật quyền thông báo.'),permission==='granted'?'success':'warning');
+      if(S.tab==='focus')refreshCurrent(true);
+    }).catch(()=>toast(tr('Could not request notification permission.','Không xin được quyền thông báo.'),'warning'));
+  }
+  // Original check() already posts desktop reminders at task start / 5 min before.
+  // Extend only the other important in-app reminders, avoiding duplicate popups.
+  if(typeof window.notify==='function'){
+    const originalNotify=window.notify;
+    window.notify=function(message,type='info',options={}){
+      const result=originalNotify.call(this,message,type,options);
+      const title=String(options?.title||'');
+      const isOriginalAlarm=/^Đến giờ học rồi!|^Còn \d+ phút nữa/u.test(title);
+      const useful=(type==='warning'||type==='danger'||type==='reminder'||(type==='info'&&title==='Việc kế tiếp hôm nay'));
+      if(useful&&!isOriginalAlarm&&!options?.desktopSkip)
+        nativeAlert(title||tr('Study Planner reminder','Nhắc nhở Study Planner'),message,'sp-event-'+type+'-'+title);
+      return result;
+    };
+  }
+  function checkSessionEnds(){
+    if(!S.user)return;
+    const now=Date.now(),today=asIso(new Date());
+    for(const t of S.tasks){
+      if(t.date!==today||!t.t_end||!['todo','doing'].includes(t.status))continue;
+      const hhmm=String(t.t_end).split(':').map(Number);
+      if(hhmm.length<2||!hhmm.every(Number.isFinite))continue;
+      const start=parseDate(t.date);start.setHours(hhmm[0],hhmm[1],0,0);
+      const ended=start.getTime();
+      if(now<ended||now-ended>10*60*1000)continue;
+      const key=`plus:end:${t.id}:${t.date}:${t.t_end}`;
+      dayRoll();if(S.fired.has(key))continue;
+      S.fired.add(key);saveLog();
+      const title=tr('Scheduled time finished ⏰','Đã hết giờ theo lịch ⏰');
+      notify(`${t.title} (${t.t_end})`,'reminder',{title,desktopSkip:true});
+      nativeAlert(title,t.title,'sp-task-end-'+t.id+'-'+t.date);
+    }
+  }
   function labelDay(day) {return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][day]}
   function labelDayVi(day) {return ['CN','T2','T3','T4','T5','T6','T7'][day]}
   const weekName = x=> locale()==='en'?labelDay(x):labelDayVi(x);
@@ -107,6 +164,21 @@
       btn.classList.toggle('active',S.tab===id);
       anchor=btn;
     }
+    // The desktop header already has these two destinations. Add drawer-only
+    // links so narrow screens never lose access when the header is condensed.
+    for (const [id,icon,en,vi] of [
+      ['manage','grid-1x2-fill','Manage','Quản lý'],
+      ['stats','bar-chart-line-fill','Statistics','Thống kê']
+    ]) {
+      let item=list.querySelector(`[data-plus-hn="${id}"]`);
+      if(!item){
+        item=document.createElement('button');item.type='button';
+        item.className='nav-link sp-mobile-only sp-mobile-destination';
+        item.dataset.plusHn=id;list.append(item);
+      }
+      item.innerHTML=`<i class="bi bi-${icon}"></i><span>${tr(en,vi)}</span>`;
+      item.classList.toggle('active',id==='stats'?S.tab==='stats':S.tab!=='stats');
+    }
     if(!side.querySelector('.sp-side-header')) {
       const head=document.createElement('div');head.className='sp-side-header';head.innerHTML='<span>✦ STUDY PLANNER</span><button type="button" data-plus-close aria-label="Close menu"><i class="bi bi-x-lg"></i></button>';
       side.insertBefore(head,side.firstChild);
@@ -136,6 +208,12 @@
   document.addEventListener('click',e=>{
     if(e.target.closest('.sp-menu-toggle')){toggleMenu(!menuOpen);return}
     if(e.target.closest('[data-plus-close]')){toggleMenu(false);return}
+    const dest=e.target.closest('[data-plus-hn]');
+    if(dest){
+      e.preventDefault();e.stopImmediatePropagation();
+      S.tab=dest.dataset.plusHn==='stats'?'stats':(S.last==='stats'?'today':S.last);
+      toggleMenu(false);refreshCurrent(true);window.scrollTo(0,0);return;
+    }
     const n=e.target.closest('[data-plus-tab]');
     if(n){e.preventDefault();e.stopImmediatePropagation();S.tab=n.dataset.plusTab;S.last=S.tab;toggleMenu(false);refreshCurrent(true);window.scrollTo(0,0);return}
     if(e.target.closest('[data-tab],[data-hn],[data-act="home"],[data-act="cal"]')&&menuOpen)toggleMenu(false);
@@ -219,6 +297,9 @@
     focus.sessions.unshift({at:new Date().toISOString(),minutes:Math.round(focus.duration/60),taskId:focus.taskId||''});
     focus.sessions=focus.sessions.slice(0,400);saveFocus();
     toast(tr('Focus session completed! 🌸','Đã hoàn thành phiên tập trung! 🌸'),'success');
+    nativeAlert(tr('Focus timer finished ⏰','Đồng hồ tập trung đã hết giờ ⏰'),
+      tr('Your focus session is complete. Great work!','Bạn đã hoàn thành phiên tập trung. Giỏi lắm!'),
+      'sp-focus-finished-'+Date.now());
     if(S.tab==='focus')refreshCurrent(true);
   }
   function formatClock(secs){const s=Math.max(0,Math.ceil(secs));return `${pa(Math.floor(s/3600))}:${pa(Math.floor((s%3600)/60))}:${pa(s%60)}`}
@@ -229,9 +310,16 @@
     return `<div class="sp-plus-shell"><div class="sp-plus-title"><div><h4>⏱️ ${tr('Focus Mode','Chế độ tập trung')}</h4><div class="sp-plus-mut">${tr('One task at a time. You can do this!','Tập trung từng việc một nhé!')}</div></div></div>
     <div class="sp-focus-grid"><div class="sp-focus-card text-center"><div class="sp-plus-mut">${tr('YOUR FOCUS TIMER','ĐỒNG HỒ TẬP TRUNG')}</div><div class="sp-focus-clock" id="spFocusClock"><div class="sp-focus-clock-inner"><div class="sp-focus-digits" id="spFocusDigits">${formatClock(focus.duration-focusElapsed())}</div><div class="sp-focus-session" id="spFocusState">${tr('Ready when you are 🌸','Sẵn sàng rồi 🌸')}</div></div></div>
     <div class="sp-focus-controls mb-3">${[25,50,90].map(n=>`<button class="sp-focus-preset ${focus.duration===n*60?'active':''}" data-plus="preset" data-id="${n}">${n} min</button>`).join('')}</div>
+    <div class="sp-focus-custom"><span class="sp-plus-mut sp-custom-title">${tr('Set any duration','Tự đặt thời lượng')}</span>
+      <div class="sp-custom-fields"><label for="spFocusHours">${tr('Hours','Giờ')}<input id="spFocusHours" type="number" inputmode="numeric" min="0" max="23" step="1" value="${Math.floor(focus.duration/3600)}"></label>
+      <label for="spFocusMinutes">${tr('Minutes','Phút')}<input id="spFocusMinutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="${Math.floor(focus.duration%3600/60)}"></label>
+      <label for="spFocusSeconds">${tr('Seconds','Giây')}<input id="spFocusSeconds" type="number" inputmode="numeric" min="0" max="59" step="1" value="${focus.duration%60}"></label></div>
+      <button type="button" class="btn btn-soft sp-apply-duration" data-plus="custom-duration">${tr('Set time','Áp dụng')}</button>
+    </div>
     <div class="sp-focus-controls"><button class="btn btn-main px-4" data-plus="focus-toggle" id="spFocusToggle">${focus.running?tr('Pause','Tạm dừng'):focus.elapsed?tr('Resume','Tiếp tục'):tr('Start focus','Bắt đầu')}</button><button class="btn btn-soft" data-plus="focus-reset">${tr('Reset','Đặt lại')}</button><button class="btn btn-soft" data-plus="focus-finish">${tr('Finish','Kết thúc')}</button></div></div>
     <div class="sp-focus-card"><h6 class="fw-bold mb-3">${tr('Current task','Công việc đang tập trung')}</h6><select class="form-select mb-3" id="spFocusTask"><option value="">${tr('No linked task','Không gắn với việc cụ thể')}</option>${options.map(t=>`<option value="${safe(t.id)}" ${String(t.id)===String(focus.taskId)?'selected':''}>${safe(t.date+' · '+t.title)}</option>`).join('')}</select>
     <p class="sp-plus-mut">${tr('The timer records real focus time. Finishing a session does not automatically mark a task completed.','Đồng hồ ghi nhận thời gian thực tế. Kết thúc phiên không tự đánh dấu hoàn thành công việc.')}</p>
+    <div class="sp-notification-setting"><i class="bi bi-bell me-2"></i><span>${('Notification' in window&&Notification.permission==='granted')?tr('Desktop alerts are on','Thông báo ra màn hình đã bật'):tr('Get an alert when your timer finishes','Nhận thông báo khi hết giờ đếm ngược')}</span>${!('Notification' in window&&Notification.permission==='granted')?`<button type="button" class="btn btn-soft btn-sm" data-plus="native-permission">${tr('Enable','Bật')}</button>`:''}</div>
     <div class="stat s2 text-start mt-3"><small>${tr('Focus time, past 7 days','Thời gian tập trung, 7 ngày gần đây')}</small><b>${n.reduce((s,x)=>s+x.minutes,0)} <span style="font-size:15px">min</span></b></div>
     <div class="stat s1 text-start mt-3"><small>${tr('Completed sessions, past 7 days','Số phiên hoàn thành, 7 ngày gần đây')}</small><b>${n.length}</b></div></div></div></div>`;
   }
@@ -289,23 +377,20 @@
     const view=$p('#view');if(!view)return;
     view.querySelectorAll('.rw').forEach(node=>{
       const t=S.tasks.find(x=>String(x.id)===String(node.querySelector('.tt[data-id]')?.dataset.id));
-      const target=node.querySelector('.tt');if(t){mountClock(t,target);if(t.t_start)node.classList.add('sp-has-clock')}
+      const target=node.querySelector('.tt');
+      if(t&&S.tab==='today'&&t.date===asIso(new Date())){
+        mountClock(t,target);if(t.t_start)node.classList.add('sp-has-clock');
+      }
     });
     view.querySelectorAll('.wc').forEach(node=>{
       const t=S.tasks.find(x=>String(x.id)===String(node.querySelector('[data-act="st"]')?.dataset.id));
       if(!t)return;
-      mountClock(t,node);
+      // Countdown belongs ONLY to Today's Schedule. Week view keeps its existing display.
       if(!node.querySelector('.sp-week-tools')){
         const tools=document.createElement('div');tools.className='sp-week-tools';
         tools.innerHTML=`<button type="button" data-plus="move" data-id="${safe(t.id)}" title="${tr('Choose another date','Chọn ngày khác')}"><i class="bi bi-calendar-event"></i></button><button type="button" class="sp-drag-handle" data-sp-drag="${safe(t.id)}" title="${tr('Drag to another day','Kéo sang ngày khác')}"><i class="bi bi-grip-vertical"></i></button>`;
         node.append(tools);
       }
-    });
-    view.querySelectorAll('tbody tr').forEach(row=>{
-      const t=S.tasks.find(x=>String(x.id)===String(row.querySelector('[data-act="st"]')?.dataset.id));
-      if(!t)return;
-      const cell=row.querySelector('td:nth-child(3)');
-      if(cell)mountClock(t,cell);
     });
     const weekCols=view.querySelectorAll('.col7');
     weekCols.forEach((col,i)=>col.dataset.spDropdate=asIso(shift(S.ws,i)));
@@ -321,7 +406,7 @@
     $p('#dBody')?.querySelectorAll('.dc').forEach(node=>{
       const id=node.querySelector('[data-act="st"]')?.dataset.id;
       const t=S.tasks.find(x=>String(x.id)===String(id));if(!t)return;
-      const header=node.querySelector('.d-flex');if(header)mountClock(t,header);
+      // Keep detailed day cards untouched: no countdown outside Today.
       if(!node.querySelector('[data-plus="move"]')){
         const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-soft sp-move-small ms-2';btn.dataset.plus='move';btn.dataset.id=id;
         btn.innerHTML=`<i class="bi bi-calendar-event me-1"></i>${tr('Move date','Đổi ngày')}`;
@@ -408,6 +493,23 @@
       document.querySelectorAll('.sp-mood-choice').forEach(c=>c.classList.toggle('active',c.dataset.id===id));return;
     }
     if(a==='mood-save'){saveMoodDraft();return}
+    if(a==='native-permission'){requestNativeAlerts();return}
+    if(a==='custom-duration'){
+      const ids=['spFocusHours','spFocusMinutes','spFocusSeconds'];
+      const fields=ids.map(id=>$p('#'+id));
+      const values=fields.map(field=>Number(field?.value));
+      const limits=[23,59,59];
+      if(fields.some((field,i)=>!field||field.value.trim()===''||!Number.isInteger(values[i])||values[i]<0||values[i]>limits[i])){
+        toast(tr('Enter valid hours (0–23), minutes (0–59) and seconds (0–59).','Nhập giờ (0–23), phút và giây (0–59) hợp lệ.'),'warning');return;
+      }
+      const duration=values[0]*3600+values[1]*60+values[2];
+      if(duration<1){toast(tr('Please set at least one second.','Cần đặt tối thiểu 1 giây.'),'warning');return}
+      if(focus.running||focus.elapsed){
+        if(!await dialog(tr('Change focus duration?','Đổi thời lượng tập trung?'),tr('Changing the timer will reset current progress.','Đổi thời lượng sẽ xóa tiến độ đang đếm.')))return;
+      }
+      focus.duration=duration;focus.elapsed=0;focus.running=false;focus.startedAt=0;
+      saveFocus();refreshCurrent(true);return;
+    }
     if(a==='preset'){
       const n=Number(id);if(focus.running||focus.elapsed){
         if(!await dialog(tr('Reset this session?','Đặt lại phiên đang học?'),tr('Progress on the current timer will be cleared.','Tiến độ đồng hồ hiện tại sẽ được xóa.')))return;
@@ -494,7 +596,10 @@
     queueMicrotask(()=>{pending=false;updateExtras()});
   }).observe($p('#mDay'),{childList:true,subtree:true});
   // Run once every second WITHOUT rerendering the entire page.
-  setInterval(()=>{if(!hydrateUser())return;finishIfElapsed();tickFocus();tickTaskClocks()},1000);
+  setInterval(()=>{if(!hydrateUser())return;finishIfElapsed();tickFocus();tickTaskClocks();checkSessionEnds()},1000);
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&hydrateUser()){finishIfElapsed();tickFocus();tickTaskClocks();checkSessionEnds()}
+  });
   hydrateUser();buildNav();
   if(S.user){refreshCurrent(true);queueGeneration()}
 })();
