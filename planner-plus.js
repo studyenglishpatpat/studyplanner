@@ -19,12 +19,34 @@
   const EXTRAS = {focus:{en:'Focus Mode',vi:'Tập trung',icon:'stopwatch'},mood:{en:'Mood Tracker',vi:'Cảm xúc',icon:'emoji-smile'}};
   TABS.focus = 'Focus Mode'; TABS.mood = 'Mood Tracker';
   let rules=[], moods={}, focus={}, moodDraft=null, changed=false, menuOpen=false;
+  // V6 visual preferences are intentionally separate from existing Supabase task columns.
+  // A missing entry means exactly the original task appearance.
+  const PALETTE = [
+    ['rose','#D78FAB','Rose','Hồng'], ['coral','#D99588','Coral','San hô'],
+    ['apricot','#DFA873','Apricot','Cam đào'], ['honey','#C7B16C','Honey','Vàng mật'],
+    ['sage','#8DB89C','Sage','Xanh lá'], ['mint','#74B5AC','Mint','Xanh bạc hà'],
+    ['sky','#84A9D2','Sky','Xanh trời'], ['lilac','#A396D3','Lilac','Tím nhạt'],
+    ['orchid','#BF92BE','Orchid','Tím hồng']
+  ];
+  const PALETTE_MAP = new Map(PALETTE.map(([id,hex])=>[id,hex]));
+  let taskStyles={}, styleDraft={color:'',priority:false}, preservedStyleDraft=null, pendingStyleSave=null;
+  const cleanStyle = v => ({color:PALETTE_MAP.has(v?.color)?v.color:'',priority:!!v?.priority});
+  function saveTaskStyles(){put('taskstyles',taskStyles)}
+  function styleFor(id){return cleanStyle(taskStyles[String(id)])}
+  function setStyle(id,appearance){
+    if(id==null)return;
+    const cfg=cleanStyle(appearance);
+    if(cfg.color||cfg.priority)taskStyles[String(id)]=cfg;
+    else delete taskStyles[String(id)];
+    saveTaskStyles();
+  }
+
   let currentUser=null, generating=false, generateQueued=false, dragging=null;
   const defaultFocus = () => ({duration:1500,elapsed:0,running:false,startedAt:0,taskId:'',sessions:[]});
   function hydrateUser() {
     if (!S.user) return false;
     if (currentUser !== S.user.id) {
-      currentUser=S.user.id; rules=get('rules',[]); moods=get('moods',{});focus={...defaultFocus(),...get('focus',defaultFocus())};
+      currentUser=S.user.id; rules=get('rules',[]); moods=get('moods',{});focus={...defaultFocus(),...get('focus',defaultFocus())}; taskStyles=get('taskstyles',{});
     }
     return true;
   }
@@ -91,38 +113,48 @@
       .then(ok=>toast(ok?tr('Test notification sent.','Đã gửi thông báo thử.'):
         tr('Could not send the test. Check Windows/Chrome notifications.','Không gửi được thông báo. Hãy kiểm tra thông báo Windows/Chrome.'),ok?'success':'warning'));
   }
-  // V5: Longer and clearer start/end melodies, synthesized locally by Web Audio.
-  // Audio starts only from the user's Focus button; no remote audio resources.
+  // V6: gentle, harmonic chimes composed with Web Audio (no downloads or paid API).
+  // The start is a bright ascending four-note motif; the finish plays a longer
+  // resolving phrase twice. Audio output is subject to device/browser volume.
   let focusAudio=null;
   function focusChime(kind){
     try{
-      const Audio=window.AudioContext||window.webkitAudioContext;
-      if(!Audio)return;
-      if(!focusAudio)focusAudio=new Audio();
+      const Context=window.AudioContext||window.webkitAudioContext;
+      if(!Context)return;
+      if(!focusAudio)focusAudio=new Context();
       if(focusAudio.state==='suspended')void focusAudio.resume().catch(()=>{});
-      const finished=kind==='finish';
-      const base=focusAudio.currentTime+.035;
-      // Start: two melodic rings (about 1.7s). Finish: four rings (about 5s).
-      // Limit peaks; actual loudness still follows browser/Windows device volume.
-      const motif=finished?[659.25,783.99,1046.5]:[523.25,659.25,783.99];
-      const loops=finished?4:2;
-      const step=finished?.29:.27, cycle=finished?1.24:.84;
-      const volume=finished?.15:.135;
-      for(let repeat=0;repeat<loops;repeat++){
-        motif.forEach((hz,n)=>{
-          const at=base+repeat*cycle+n*step;
-          const length=finished?.33:.29;
-          const osc=focusAudio.createOscillator(),gain=focusAudio.createGain();
-          osc.type='triangle';osc.frequency.setValueAtTime(hz,at);
+      const ctx=focusAudio, start=ctx.currentTime+.045, ending=kind==='finish';
+      const compressor=ctx.createDynamicsCompressor();
+      compressor.threshold.value=-16;compressor.knee.value=18;
+      compressor.ratio.value=3;compressor.attack.value=.006;compressor.release.value=.24;
+      compressor.connect(ctx.destination);
+      const bell=(frequency,at,duration,level=.18)=>{
+        // Rich bell-like overtones with separate envelopes, never distorted square waves.
+        [1,2,3].forEach((harmonic,index)=>{
+          const osc=ctx.createOscillator(),gain=ctx.createGain();
+          osc.type=index===0?'sine':'triangle';
+          osc.frequency.setValueAtTime(frequency*harmonic,at);
+          const amp=level*[1,.21,.07][index];
+          const attack=.025,release=Math.min(duration-.04,index===0?.42:.22);
           gain.gain.setValueAtTime(.0001,at);
-          gain.gain.exponentialRampToValueAtTime(volume,at+.032);
-          gain.gain.setValueAtTime(volume,at+length-.11);
-          gain.gain.exponentialRampToValueAtTime(.0001,at+length);
-          osc.connect(gain);gain.connect(focusAudio.destination);
-          osc.start(at);osc.stop(at+length+.01);
+          gain.gain.exponentialRampToValueAtTime(amp,at+attack);
+          gain.gain.exponentialRampToValueAtTime(amp*.48,at+Math.max(attack+.03,duration-release));
+          gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
+          osc.connect(gain);gain.connect(compressor);
+          osc.start(at);osc.stop(at+duration+.02);
         });
+      };
+      if(ending){
+        const melody=[783.99,659.25,523.25,659.25,587.33,523.25];
+        for(let round=0;round<2;round++){
+          melody.forEach((hz,i)=>bell(hz,start+round*2.75+i*.42,i===5?.83:.56,i===5?.20:.145));
+        }
+        // Closing soft major chord makes the end distinguishable from the start.
+        [523.25,659.25,783.99].forEach((hz,i)=>bell(hz,start+5.46+i*.045,1.18,.11));
+      }else{
+        [523.25,659.25,783.99,1046.5].forEach((hz,i)=>bell(hz,start+i*.24,i===3?.73:.42,i===3?.19:.15));
       }
-    }catch(err){console.warn('[Study Planner] Timer chime unavailable:',err)}
+    }catch(err){console.warn('[Study Planner] Focus chime unavailable:',err)}
   }
   // Original check() already posts desktop reminders at task start / 5 min before.
   // Extend only the other important in-app reminders, avoiding duplicate popups.
@@ -194,7 +226,10 @@
           const {data,error}=await sb.from('tasks').insert(rows).select('id,date');
           if (error) throw error;
           rule.generated=rule.generated||{};
-          for(const row of data||[]) rule.generated[row.date]=row.id;
+          for(const row of data||[]){
+            rule.generated[row.date]=row.id;
+            if(rule.appearance)setStyle(row.id,rule.appearance);
+          }
           saveRules(); created+=(data||[]).length;
         }
       }
@@ -217,7 +252,19 @@
   const baseLoad = window.load;
   if(typeof baseLoad==='function') window.load=async function(...args){
     const result=await baseLoad.apply(this,args);
-    if(hydrateUser() && rules.some(x=>x.active)) queueGeneration();
+    if(hydrateUser()){
+      // Only commit appearance after a successful task reload. The original
+      // save/confirmation handlers still own the database transaction.
+      if(pendingStyleSave && Date.now()-pendingStyleSave.at<30000){
+        const p=pendingStyleSave;
+        const match=t=>t&&t.title===p.form.title&&t.date===p.form.date&&
+          (t.t_start||'')===(p.form.t_start||'');
+        const record=p.id ? S.tasks.find(t=>String(t.id)===String(p.id)) :
+          S.tasks.find(t=>!p.known.has(String(t.id))&&match(t));
+        if(record&&match(record)){setStyle(record.id,p.appearance);pendingStyleSave=null}
+      }else pendingStyleSave=null;
+      if(rules.some(x=>x.active))queueGeneration();
+    }
     return result;
   };
   /* Navigation: retain the existing desktop sidebar. Only <=800px uses a drawer. */
@@ -293,6 +340,7 @@
   if(typeof baseOpenTask==='function')window.openTask=function(m){
     baseOpenTask(m);
     renderRepeatForm(m);
+    renderStyleForm(m);
   };
   function renderRepeatForm(task) {
     let block=$p('#spRepeat');
@@ -314,6 +362,43 @@
       $p('#spRepeatDays').hidden=e.target.value!=='weekly';
     });
   }
+  function renderStyleForm(task){
+    const existing=task?.id?styleFor(task.id):{color:'',priority:false};
+    styleDraft=preservedStyleDraft&&S.draft===task?{...preservedStyleDraft}:{...existing};
+    preservedStyleDraft=null;
+    let panel=$p('#spTaskStyle');
+    if(!panel){panel=document.createElement('section');panel.id='spTaskStyle';panel.className='sp-task-style';}
+    // Place appearance LAST, after recurrence controls and all original task fields.
+    $p('#mTask .modal-body')?.append(panel);
+    const buttons=[['',null,tr('Default','Mặc định')],...PALETTE.map(([id,hex,en,vi])=>[id,hex,tr(en,vi)])];
+    panel.innerHTML=`<div class="sp-task-style-heading"><i class="bi bi-palette me-1"></i>${tr('Task color','Màu công việc')} <small>${tr('(optional)','(không bắt buộc)')}</small></div>
+      <div class="sp-color-options" role="group" aria-label="${tr('Task color options','Các màu công việc')}">
+      ${buttons.map(([id,hex,name])=>`<button type="button" class="sp-color-option ${id?'':'sp-color-default'} ${styleDraft.color===id?'selected':''}" style="${hex?'--sp-swatch:'+hex+';':''}" data-plus="style-color" data-id="${id}" aria-pressed="${styleDraft.color===id}" aria-label="${safe(name)}" title="${safe(name)}"><i class="bi bi-check-lg"></i></button>`).join('')}</div>
+      <button type="button" id="spPriorityToggle" class="sp-priority-toggle ${styleDraft.priority?'selected':''}" data-plus="style-priority" aria-pressed="${styleDraft.priority}"><i class="bi bi-${styleDraft.priority?'star-fill':'star'}"></i><span>${tr('Mark as priority','Đánh dấu ưu tiên')}</span></button>`;
+  }
+  function refreshStyleForm(){
+    $p('#spTaskStyle')?.querySelectorAll('[data-plus="style-color"]').forEach(b=>{
+      const selected=b.dataset.id===styleDraft.color;
+      b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));
+    });
+    const star=$p('#spPriorityToggle');if(star){
+      star.classList.toggle('selected',styleDraft.priority);
+      star.setAttribute('aria-pressed',String(styleDraft.priority));
+      star.querySelector('i').className='bi bi-'+(styleDraft.priority?'star-fill':'star');
+    }
+  }
+  // Capture only an approved Save click; enhancements.js owns confirmation.
+  // This also covers repeated tasks, which the Plus handler saves separately.
+  document.addEventListener('click',e=>{
+    const save=e.target.closest('[data-act="save"]');if(!save||!S.m)return;
+    const form=readForm();if(!form.title||!form.date)return;
+    pendingStyleSave={at:Date.now(),id:form.id||null,form,
+      appearance:cleanStyle(styleDraft),known:new Set(S.tasks.map(t=>String(t.id)))};
+  },true);
+  // Keep appearance choices when temporarily opening the subject-group editor.
+  document.addEventListener('click',e=>{
+    if(e.target.closest('[data-act="subs"][data-from="task"]'))preservedStyleDraft={...styleDraft};
+  },true);
   function repeatChoice(){
     const kind=$p('#spRepeatKind')?.value;
     if(!kind||kind==='none')return null;
@@ -333,7 +418,9 @@
       else result=await sb.from('tasks').insert(fields).select('id').single();
       if(result.error)throw result.error;
       baseId=result.data?.id||id;
-      const rule={id:'repeat_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),...fields,start:t.date,kind:choice.kind,days:choice.days,until:choice.until,active:true,generated:{[t.date]:baseId}};
+      setStyle(baseId,cleanStyle(styleDraft));
+      pendingStyleSave=null;
+      const rule={id:'repeat_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),...fields,start:t.date,kind:choice.kind,days:choice.days,until:choice.until,active:true,appearance:cleanStyle(styleDraft),generated:{[t.date]:baseId}};
       rules.push(rule);saveRules();
       mTask.hide();await baseLoad();refreshCurrent(true);queueGeneration();
       toast(tr('Recurring schedule saved ✨','Đã lưu lịch lặp lại ✨'),'success');
@@ -417,21 +504,24 @@
   async function changeDate(id,to){
     hydrateUser();const t=S.tasks.find(x=>String(x.id)===String(id));
     if(!t||!to||to===t.date)return;
-    const approved=await dialog(tr('Move this task?','Chuyển ngày công việc?'),`${t.title}\n${t.date} → ${to}`);
+    const approved=await dialog(tr('Copy this task?','Sao chép công việc?'),
+      `${t.title}\n${t.date} → ${to}\n${tr('The original stays on its current date.','Công việc cũ vẫn giữ nguyên ngày ban đầu.')}`);
     if(!approved)return;
     try{
-      const {error}=await sb.from('tasks').update({date:to}).eq('id',t.id);if(error)throw error;
-      const rule=rules.find(r=>Object.values(r.generated||{}).some(v=>String(v)===String(id)));
-      // A moved occurrence remains an exception to its repeating schedule.
-      if(rule){const k=Object.keys(rule.generated).find(k=>String(rule.generated[k])===String(id));if(k){rule.generated[k]=id;saveRules()}}
+      // INSERT a new task, NEVER update/delete the original task or its repeat rule.
+      const copied={title:t.title,subject:t.subject||'',date:to,
+        t_start:t.t_start||null,t_end:t.t_end||null,note:t.note||'',status:'todo'};
+      const {data,error}=await sb.from('tasks').insert(copied).select('id').single();
+      if(error)throw error;
+      if(data?.id!=null)setStyle(data.id,styleFor(t.id));
       await baseLoad();refreshCurrent(true);
-      toast(tr('Task moved successfully ✨','Đã chuyển lịch thành công ✨'),'success');
+      toast(tr('Task copied! Original kept ✨','Đã sao chép! Lịch gốc vẫn còn ✨'),'success');
     }catch(err){toast(err.message,'danger')}
   }
   function movePrompt(id){
     const t=S.tasks.find(x=>String(x.id)===String(id));if(!t)return;
     const shell=document.createElement('div');shell.className='sp-move-pop';shell.id='spMoveModal';
-    shell.innerHTML=`<div class="sp-move-dialog" role="dialog" aria-modal="true" aria-labelledby="spMoveTitle"><h5 id="spMoveTitle">${tr('Move task to another date','Chuyển việc sang ngày khác')}</h5><p class="sp-plus-mut">${safe(t.title)}</p><label class="form-label" for="spMoveDate">${tr('New date','Ngày mới')}</label><input type="date" id="spMoveDate" class="form-control" value="${safe(t.date)}"><div class="d-flex gap-2 justify-content-end mt-3"><button class="btn btn-soft" data-plus="move-cancel">${tr('Cancel','Hủy')}</button><button class="btn btn-main" data-plus="move-apply" data-id="${safe(id)}">${tr('Continue','Tiếp tục')}</button></div></div>`;
+    shell.innerHTML=`<div class="sp-move-dialog" role="dialog" aria-modal="true" aria-labelledby="spMoveTitle"><h5 id="spMoveTitle">${tr('Copy task to another date','Sao chép việc sang ngày khác')}</h5><p class="sp-plus-mut">${safe(t.title)}<br>${tr('The original task stays in place.','Giữ nguyên công việc ở ngày cũ.')}</p><label class="form-label" for="spMoveDate">${tr('New date','Ngày mới')}</label><input type="date" id="spMoveDate" class="form-control" value="${safe(t.date)}"><div class="d-flex gap-2 justify-content-end mt-3"><button class="btn btn-soft" data-plus="move-cancel">${tr('Cancel','Hủy')}</button><button class="btn btn-main" data-plus="move-apply" data-id="${safe(id)}">${tr('Continue','Tiếp tục')}</button></div></div>`;
     document.body.append(shell);$p('#spMoveDate')?.focus();
   }
   /* Render hooks decorate the existing views instead of replacing the original
@@ -442,11 +532,25 @@
     if(!el){el=document.createElement('span');el.className='sp-activity';target.append(el)}
     el.dataset.spClock=String(t.id);
   }
+  function decorateAppearance(node,t,titleTarget){
+    if(!node||!t)return;
+    const appearance=styleFor(t.id),hex=PALETTE_MAP.get(appearance.color);
+    if(hex){node.classList.add('sp-custom-task');node.style.setProperty('--sp-task-accent',hex)}
+    if(appearance.priority){
+      node.classList.add('sp-priority-task');
+      if(titleTarget&&!titleTarget.querySelector('.sp-priority-mark')){
+        const star=document.createElement('i');star.className='bi bi-star-fill sp-priority-mark';
+        star.title=tr('Priority task','Việc ưu tiên');star.setAttribute('aria-label',star.title);
+        titleTarget.prepend(star);
+      }
+    }
+  }
   function decorateTasks(){
     const view=$p('#view');if(!view)return;
     view.querySelectorAll('.rw').forEach(node=>{
       const t=S.tasks.find(x=>String(x.id)===String(node.querySelector('.tt[data-id]')?.dataset.id));
       const target=node.querySelector('.tt');
+      decorateAppearance(node,t,target);
       if(t&&S.tab==='today'&&t.date===asIso(new Date())){
         mountClock(t,target);if(t.t_start)node.classList.add('sp-has-clock');
       }
@@ -454,10 +558,11 @@
     view.querySelectorAll('.wc').forEach(node=>{
       const t=S.tasks.find(x=>String(x.id)===String(node.querySelector('[data-act="st"]')?.dataset.id));
       if(!t)return;
+      decorateAppearance(node,t,node.querySelector('b[data-act="edit"]'));
       // Countdown belongs ONLY to Today's Schedule. Week view keeps its existing display.
       if(!node.querySelector('.sp-week-tools')){
         const tools=document.createElement('div');tools.className='sp-week-tools';
-        tools.innerHTML=`<button type="button" data-plus="move" data-id="${safe(t.id)}" title="${tr('Choose another date','Chọn ngày khác')}"><i class="bi bi-calendar-event"></i></button><button type="button" class="sp-drag-handle" data-sp-drag="${safe(t.id)}" title="${tr('Drag to another day','Kéo sang ngày khác')}"><i class="bi bi-grip-vertical"></i></button>`;
+        tools.innerHTML=`<button type="button" data-plus="move" data-id="${safe(t.id)}" title="${tr('Copy to another date','Sao chép sang ngày khác')}"><i class="bi bi-calendar-event"></i></button><button type="button" class="sp-drag-handle" data-sp-drag="${safe(t.id)}" title="${tr('Drag to copy to another day','Kéo để sao chép sang ngày khác')}"><i class="bi bi-grip-vertical"></i></button>`;
         node.append(tools);
       }
     });
@@ -474,7 +579,15 @@
         dot.dataset.spDrag=String(t.id);
         dot.title=tr('Drag task: ','Kéo công việc: ')+t.title;
         dot.classList.add('sp-drag-handle');
+        const a=styleFor(t.id),hex=PALETTE_MAP.get(a.color);
+        if(hex){dot.style.setProperty('--sp-task-accent',hex);dot.classList.add('sp-custom-dot')}
+        if(a.priority){dot.classList.add('sp-priority-dot');dot.title+=' ★'}
       });
+    });
+    if(S.tab==='list')view.querySelectorAll('.table tbody tr').forEach(node=>{
+      const id=node.querySelector('[data-act="st"]')?.dataset.id;
+      const t=S.tasks.find(x=>String(x.id)===String(id));
+      decorateAppearance(node,t,node.querySelector('.tt[data-act="edit"]'));
     });
     tickTaskClocks();
   }
@@ -482,10 +595,11 @@
     $p('#dBody')?.querySelectorAll('.dc').forEach(node=>{
       const id=node.querySelector('[data-act="st"]')?.dataset.id;
       const t=S.tasks.find(x=>String(x.id)===String(id));if(!t)return;
+      decorateAppearance(node,t,node.querySelector('.fw-semibold'));
       // Keep detailed day cards untouched: no countdown outside Today.
       if(!node.querySelector('[data-plus="move"]')){
         const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-soft sp-move-small ms-2';btn.dataset.plus='move';btn.dataset.id=id;
-        btn.innerHTML=`<i class="bi bi-calendar-event me-1"></i>${tr('Move date','Đổi ngày')}`;
+        btn.innerHTML=`<i class="bi bi-calendar-event me-1"></i>${tr('Copy task','Sao chép việc')}`;
         node.querySelector('.text-end')?.prepend(btn);
       }
     });
@@ -544,8 +658,16 @@
       legend.position='bottom';
       legend.labels={...legend.labels,boxWidth:12,boxHeight:12,padding:10,font:{size:11}};
     }
-    chart.options.animation=false;
-    chart.resize();chart.update('none');
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    chart.options.animation=reduced?false:{duration:1050,easing:'easeOutCubic'};
+    chart.resize();
+    // V5 disabled animation entirely on mobile. Defer one frame so the
+    // enhancement translation pass cannot cancel the initial doughnut sweep.
+    requestAnimationFrame(()=>{
+      if(!S.ch.includes(chart)||!chart.canvas?.isConnected)return;
+      if(!reduced)chart.reset();
+      chart.update(reduced?'none':undefined);
+    });
   }
   function refreshCurrent(force){
     if(force)delete $p('#view')?.dataset.spPlusTab;
@@ -600,6 +722,8 @@
   document.addEventListener('click',async e=>{
     const el=e.target.closest('[data-plus]');if(!el)return;
     const a=el.dataset.plus,id=el.dataset.id;
+    if(a==='style-color'){styleDraft.color=PALETTE_MAP.has(id)?id:'';refreshStyleForm();return}
+    if(a==='style-priority'){styleDraft.priority=!styleDraft.priority;refreshStyleForm();return}
     if(a==='rules'){showRules();return}
     if(a==='rules-close'){ $p('#spRulesModal')?.remove();return }
     if(a==='rule-toggle'){await stopRule(id);return}

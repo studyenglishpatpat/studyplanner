@@ -141,3 +141,42 @@ html[data-sp-theme="dark"] .sp-rpt-day:has(input:checked)::before{content:"✓";
   #view div:has(> #cStatus){height:clamp(340px,95vw,390px)!important;max-width:100%;min-width:0;position:relative}
   #view #cStatus{display:block;max-width:100%!important}
 }
+
+/* V6 — task appearance panel (additive only; uncolored tasks keep V5 styling). */
+.sp-task-style{margin-top:14px;padding:13px 12px 12px;border:1px solid var(--ln);border-radius:15px;background:#faf7ff}
+.sp-task-style-heading{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px}
+.sp-task-style-heading small{font-size:11px;font-weight:500;color:var(--mut)}
+.sp-color-options{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.sp-color-option{--sp-swatch:#fff;position:relative;width:32px;height:32px;flex:none;border-radius:50%;border:2px solid #ffffff;background:var(--sp-swatch);box-shadow:0 0 0 1px #a49bb5a6;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .15s,box-shadow .15s}
+.sp-color-option:hover{transform:translateY(-2px) scale(1.06)}
+.sp-color-option.selected{box-shadow:0 0 0 2px #8069aa,0 3px 10px #8f79b944;transform:scale(1.05)}
+.sp-color-option i{visibility:hidden;font-weight:800;color:#fff;text-shadow:0 1px 2px #4f365d9e;font-size:17px;line-height:1}
+.sp-color-option.selected i{visibility:visible}
+.sp-color-default{background:linear-gradient(135deg,#f2a4bf 0 47%,#fff 48% 53%,#b7a2da 54% 100%)}
+.sp-color-option:focus-visible,.sp-priority-toggle:focus-visible{outline:3px solid #866dbb;outline-offset:3px}
+.sp-priority-toggle{display:flex;gap:9px;align-items:center;justify-content:center;min-height:38px;width:100%;border:1px solid #e0d5ef;border-radius:12px;background:#fff;color:#776293;font-size:13px;font-weight:700;cursor:pointer}
+.sp-priority-toggle i{font-size:18px;color:#ba9b6c}
+.sp-priority-toggle.selected{border-color:#d5a453;background:#fff0d7;color:#7a5629;box-shadow:0 0 0 1px #e7bd7c88}
+.sp-priority-toggle.selected i{color:#c78b29}
+/* Subtle pastel surfaces. Accent changes only for tasks with an explicitly set color. */
+#view .rw.sp-custom-task,#view .wc.sp-custom-task,#dBody .dc.sp-custom-task{border-left-color:var(--sp-task-accent);background:color-mix(in srgb,var(--sp-task-accent) 17%,#fff)}
+#view .table tbody tr.sp-custom-task > td{background:color-mix(in srgb,var(--sp-task-accent) 14%,#fff)}
+#view .rw.sp-priority-task,#view .wc.sp-priority-task,#dBody .dc.sp-priority-task{outline:2px solid #d9a14dbb;outline-offset:0;box-shadow:0 4px 15px #c59a4a30}
+#view .table tr.sp-priority-task td{border-top:2px solid #d7a048!important;border-bottom:2px solid #d7a048!important}
+#view .table tr.sp-priority-task td:first-child{border-left:3px solid #d7a048!important}
+.sp-priority-mark{color:#be8628;font-size:14px;margin-right:7px;vertical-align:baseline;text-decoration:none!important;display:inline-block}
+#view .mc .dot.sp-custom-dot{background:var(--sp-task-accent)}
+#view .mc .dot.sp-priority-dot{box-shadow:0 0 0 2px #d2a14b;transform:scale(1.07)}
+html[data-sp-theme="dark"] .sp-task-style{background:#343047;border-color:#544967}
+html[data-sp-theme="dark"] .sp-task-style-heading{color:#f0e9fc}
+html[data-sp-theme="dark"] .sp-color-option{border-color:#3c354a;box-shadow:0 0 0 1px #c7b3de77}
+html[data-sp-theme="dark"] .sp-color-option.selected{box-shadow:0 0 0 2px #e2c9ff,0 2px 13px #e1bafd5e}
+html[data-sp-theme="dark"] .sp-priority-toggle{background:#3d354d;color:#dccaf2;border-color:#605472}
+html[data-sp-theme="dark"] .sp-priority-toggle.selected{background:#56432d;color:#ffdda6;border-color:#dcad61}
+html[data-sp-theme="dark"] .sp-priority-toggle.selected i{color:#ffcf75}
+html[data-sp-theme="dark"] #view .rw.sp-custom-task,html[data-sp-theme="dark"] #view .wc.sp-custom-task,html[data-sp-theme="dark"] #dBody .dc.sp-custom-task{background:color-mix(in srgb,var(--sp-task-accent) 24%,#292538)!important;color:#f8f3ff}
+html[data-sp-theme="dark"] #view .table tbody tr.sp-custom-task > td{background:color-mix(in srgb,var(--sp-task-accent) 17%,#302c40)!important;color:#f4edff!important}
+html[data-sp-theme="dark"] #view .rw.sp-priority-task,html[data-sp-theme="dark"] #view .wc.sp-priority-task,html[data-sp-theme="dark"] #dBody .dc.sp-priority-task{outline-color:#edc177}
+html[data-sp-theme="dark"] .sp-priority-mark{color:#ffcf7a}
+@media(max-width:380px){.sp-color-options{gap:7px}.sp-color-option{width:30px;height:30px}}
+@media(max-width:800px) and (prefers-reduced-motion:no-preference){#view #cStatus{animation:sp-doughnut-reveal .75s ease-out both}@keyframes sp-doughnut-reveal{from{opacity:.3;transform:scale(.88)}to{opacity:1;transform:scale(1)}}}
