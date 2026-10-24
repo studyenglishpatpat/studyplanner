@@ -1,5 +1,5 @@
 /* STUDY PLANNER PLUS — optional add-on. Base tasks/auth/UI remain untouched.
-   V8: Bootstrap task icon picker, synchronized through existing V7 Supabase taskstyles rows. */
+   V10: repair icon picker focus inside Bootstrap Modal and strengthen Today watermark contrast. */
 (() => {
   'use strict';
   if (!document.getElementById('mTask') || typeof S === 'undefined') return;
@@ -42,7 +42,7 @@
   const ICON_SET = new Set(ICONS);
   const normalizeSearch = x => String(x||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
   const ICON_SEARCH_POOL = ICON_GROUPS.flatMap(g=>g.names.map(name=>({name,groupId:g.id,groupLabel:`${g.en} ${g.vi}`,search:normalizeSearch([name,g.tags,g.en,g.vi,name.replace(/-/g,' ')].join(' '))})));
-  const TODAY_BG_ICONS = ['stars','bookmark-heart','book','journal-bookmark','palette','lightbulb','calendar-event','pencil-square','balloon-heart','heart','flower1','flower2','gem','cloud-sun','moon-stars'];
+  const TODAY_BG_ICONS = ['stars','book','journal-bookmark','palette','lightbulb','calendar-event','pencil-square','heart','flower1','flower2','gem','cloud-sun','mortarboard','trophy','cup-hot','alarm'];
   // Validation is intentional: never interpolate arbitrary cloud-stored text as a CSS class.
   const cleanStyle = v => ({color:PALETTE_MAP.has(v?.color)?v.color:'',priority:!!v?.priority,icon:ICON_SET.has(v?.icon)?v.icon:''});
   let taskStyles={}, styleDraft={color:'',priority:false,icon:''}, preservedStyleDraft=null, pendingStyleSave=null;
@@ -591,9 +591,13 @@
   function iconPickerTiles(){
     const box=$p('#spIconResults'),count=$p('#spIconCount');if(!box)return;
     const words=normalizeSearch(iconPickerQuery);
-    const matches=ICON_SEARCH_POOL
-      .filter(x=>iconPickerGroup==='all'||x.groupId===iconPickerGroup)
-      .filter(x=>!words||x.search.includes(words));
+    // Prefer specific icon names; category-wide matches are only a fallback.
+    const inGroup=ICON_SEARCH_POOL.filter(x=>iconPickerGroup==='all'||x.groupId===iconPickerGroup);
+    const aliases={sach:'book',hoc:'book',truong:'mortarboard',thi:'pencil',nhac:'music',am:'music',cam:'emoji',lich:'calendar',gio:'clock',sao:'star',yeu:'heart',tim:'heart',cong:'briefcase',laptop:'laptop',may:'laptop',the:'tag',choi:'controller',du:'airplane',suc:'heart-pulse',vuong:'square'};
+    const direct=inGroup.filter(x=>!words||x.name.replace(/-/g,' ').includes(words)||normalizeSearch(x.name)===words);
+    const mapped=aliases[words];
+    const aliasMatches=mapped?inGroup.filter(x=>x.name.includes(mapped)):[];
+    const matches=!words?inGroup:direct.length?direct:aliasMatches.length?aliasMatches:inGroup.filter(x=>x.search.includes(words));
     if(count)count.textContent=(locale()==='vi'?`${matches.length} / ${ICONS.length} biểu tượng`:`${matches.length} / ${ICONS.length} icons`);
     box.innerHTML=matches.length?matches.map(x=>`<button type="button" class="sp-icon-tile ${x.name===styleDraft.icon?'selected':''}" data-plus="icon-select" data-id="${x.name}" aria-pressed="${x.name===styleDraft.icon}" aria-label="${x.name.replace(/-/g,' ')}" title="${x.name.replace(/-/g,' ')}"><i class="bi bi-${x.name}" aria-hidden="true"></i><span>${x.name.replace(/-/g,' ')}</span></button>`).join('')
       :`<p class="sp-icon-empty">${tr('No matching icons. Try another keyword.','Không tìm thấy biểu tượng. Hãy thử từ khóa khác.')}</p>`;
@@ -618,7 +622,9 @@
       <div class="sp-icon-footer"><button type="button" class="btn btn-soft btn-sm" data-plus="icon-clear"><i class="bi bi-slash-circle me-1"></i>${tr('No icon','Không dùng icon')}</button><button type="button" class="btn btn-main btn-sm" data-plus="icon-close">${tr('Done','Xong')}</button></div>
     </section>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeIconPicker()});
-    document.body.append(overlay);
+    // Bootstrap Modal traps keyboard focus within #mTask. Put the picker INSIDE
+    // that modal; appending to body prevented typing in the search field.
+    ($p('#mTask')||document.body).append(overlay);
     const input=$p('#spIconSearch');
     const syncSearch=()=>{iconPickerQuery=input?.value||'';iconPickerTiles();};
     ['input','search','change','keyup','compositionend'].forEach(type=>input?.addEventListener(type,syncSearch));
@@ -795,16 +801,17 @@
   function ensureTodayBackdrop(node,t,hex){
     if(S.tab!=='today'||!node.classList.contains('rw')||!t)return;
     node.classList.add('sp-decorated-today');
-    node.style.setProperty('--sp-bg-accent',hex||'#cbbbe9');
-    let mark=node.querySelector(':scope > .sp-task-watermark');
-    if(!mark){
-      mark=document.createElement('i');
-      mark.className='sp-task-watermark';
-      mark.setAttribute('aria-hidden','true');
-      node.append(mark);
-    }
-    const chosen=TODAY_BG_ICONS[hashKey(t.id||t.title)%TODAY_BG_ICONS.length];
-    mark.className='bi bi-'+chosen+' sp-task-watermark';
+    const statusTints={todo:'#de90b6',doing:'#d6a960',done:'#70b79b',skip:'#a496c7'};
+    node.style.setProperty('--sp-bg-accent',hex||statusTints[t.status]||'#a396d3');
+    const hash=hashKey(t.id||t.title);
+    const setMark=(className,offset)=>{
+      let mark=node.querySelector(':scope > .'+className);
+      if(!mark){mark=document.createElement('i');mark.setAttribute('aria-hidden','true');node.append(mark)}
+      const chosen=TODAY_BG_ICONS[(hash+offset)%TODAY_BG_ICONS.length];
+      mark.className='bi bi-'+chosen+' sp-task-watermark '+className;
+    };
+    setMark('sp-task-watermark-main',0);
+    setMark('sp-task-watermark-secondary',7);
   }
   function decorateAppearance(node,t,titleTarget){
     if(!node||!t)return;
@@ -1010,7 +1017,7 @@
     if(a==='icon-close'){closeIconPicker();return}
     if(a==='icon-clear'){styleDraft.icon='';refreshStyleForm();closeIconPicker();return}
     if(a==='icon-select'){styleDraft.icon=ICON_SET.has(id)?id:'';refreshStyleForm();closeIconPicker();return}
-    if(a==='icon-category'){iconPickerGroup=id==='all'||ICON_GROUPS.some(g=>g.id===id)?id:'all';iconPickerTiles();return}
+    if(a==='icon-category'){iconPickerGroup=id==='all'||ICON_GROUPS.some(g=>g.id===id)?id:'all';iconPickerQuery='';const searchField=$p('#spIconSearch');if(searchField)searchField.value='';iconPickerTiles();return}
     if(a==='rules'){showRules();return}
     if(a==='rules-close'){ $p('#spRulesModal')?.remove();return }
     if(a==='rule-toggle'){await stopRule(id);return}
