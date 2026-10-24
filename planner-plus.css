@@ -258,3 +258,20 @@ html[data-sp-theme="dark"] #view .rw.sp-decorated-today .sp-task-watermark-secon
  #view .rw.sp-decorated-today .sp-task-watermark-secondary{font-size:28px;left:60%;bottom:0;opacity:.13}
 }
 @media(max-width:600px){#mTask .sp-icon-dialog{max-height:calc(100dvh - 24px)}}
+
+/* V10 mobile-only adjustment: larger decorative Bootstrap icon silhouettes.
+   No desktop, Task icon choice, cloud-sync, or interaction styles are changed. */
+@media (max-width:800px) {
+  #view .rw.sp-decorated-today .sp-task-watermark-main {
+    font-size:clamp(160px,48vw,230px);
+    right:-3%;
+    top:50%;
+    transform:translateY(-50%) rotate(16deg);
+  }
+  #view .rw.sp-decorated-today .sp-task-watermark-secondary {
+    font-size:clamp(90px,26vw,126px);
+    left:8%;
+    bottom:-34px;
+    transform:rotate(-19deg);
+  }
+}
