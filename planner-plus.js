@@ -40,6 +40,9 @@
   ];
   const ICONS = [...new Set(ICON_GROUPS.flatMap(g=>g.names))];
   const ICON_SET = new Set(ICONS);
+  const normalizeSearch = x => String(x||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+  const ICON_SEARCH_POOL = ICON_GROUPS.flatMap(g=>g.names.map(name=>({name,groupId:g.id,groupLabel:`${g.en} ${g.vi}`,search:normalizeSearch([name,g.tags,g.en,g.vi,name.replace(/-/g,' ')].join(' '))})));
+  const TODAY_BG_ICONS = ['stars','bookmark-heart','book','journal-bookmark','palette','lightbulb','calendar-event','pencil-square','balloon-heart','heart','flower1','flower2','gem','cloud-sun','moon-stars'];
   // Validation is intentional: never interpolate arbitrary cloud-stored text as a CSS class.
   const cleanStyle = v => ({color:PALETTE_MAP.has(v?.color)?v.color:'',priority:!!v?.priority,icon:ICON_SET.has(v?.icon)?v.icon:''});
   let taskStyles={}, styleDraft={color:'',priority:false,icon:''}, preservedStyleDraft=null, pendingStyleSave=null;
@@ -587,13 +590,12 @@
   }
   function iconPickerTiles(){
     const box=$p('#spIconResults'),count=$p('#spIconCount');if(!box)return;
-    const words=iconPickerQuery.trim().toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const normalized=x=>x.toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const available=ICON_GROUPS.filter(g=>iconPickerGroup==='all'||g.id===iconPickerGroup)
-      .flatMap(g=>g.names.map(name=>({name,tags:g.tags,group:g.en+' '+g.vi})));
-    const matches=[...new Map(available.filter(x=>!words||normalized(x.name+' '+x.tags+' '+x.group).includes(words)).map(x=>[x.name,x])).values()];
-    if(count)count.textContent=matches.length+' / '+ICONS.length;
-    box.innerHTML=matches.length?matches.map(x=>`<button type="button" class="sp-icon-tile ${x.name===styleDraft.icon?'selected':''}" data-plus="icon-select" data-id="${x.name}" aria-pressed="${x.name===styleDraft.icon}" aria-label="${x.name.replace(/-/g,' ')}" title="${x.name.replace(/-/g,' ')}"><i class="bi bi-${x.name}" aria-hidden="true"></i></button>`).join('')
+    const words=normalizeSearch(iconPickerQuery);
+    const matches=ICON_SEARCH_POOL
+      .filter(x=>iconPickerGroup==='all'||x.groupId===iconPickerGroup)
+      .filter(x=>!words||x.search.includes(words));
+    if(count)count.textContent=(locale()==='vi'?`${matches.length} / ${ICONS.length} biểu tượng`:`${matches.length} / ${ICONS.length} icons`);
+    box.innerHTML=matches.length?matches.map(x=>`<button type="button" class="sp-icon-tile ${x.name===styleDraft.icon?'selected':''}" data-plus="icon-select" data-id="${x.name}" aria-pressed="${x.name===styleDraft.icon}" aria-label="${x.name.replace(/-/g,' ')}" title="${x.name.replace(/-/g,' ')}"><i class="bi bi-${x.name}" aria-hidden="true"></i><span>${x.name.replace(/-/g,' ')}</span></button>`).join('')
       :`<p class="sp-icon-empty">${tr('No matching icons. Try another keyword.','Không tìm thấy biểu tượng. Hãy thử từ khóa khác.')}</p>`;
     $p('#spIconCategories')?.querySelectorAll('button').forEach(b=>{
       b.classList.toggle('active',b.dataset.id===iconPickerGroup);
@@ -617,11 +619,18 @@
     </section>`;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeIconPicker()});
     document.body.append(overlay);
-    iconPickerTiles();$p('#spIconSearch')?.focus();
+    const input=$p('#spIconSearch');
+    const syncSearch=()=>{iconPickerQuery=input?.value||'';iconPickerTiles();};
+    ['input','search','change','keyup','compositionend'].forEach(type=>input?.addEventListener(type,syncSearch));
+    input?.addEventListener('keydown',ev=>ev.stopPropagation());
+    iconPickerTiles();input?.focus();
   }
   document.addEventListener('input',e=>{
     if(e.target?.id==='spIconSearch'){iconPickerQuery=e.target.value;iconPickerTiles()}
   });
+  document.addEventListener('search',e=>{
+    if(e.target?.id==='spIconSearch'){iconPickerQuery=e.target.value;iconPickerTiles()}
+  },true);
   document.addEventListener('keydown',e=>{
     if(!$p('#spIconPicker'))return;
     if(e.key==='Escape'){e.stopPropagation();e.preventDefault();closeIconPicker()}
@@ -782,10 +791,26 @@
     if(!el){el=document.createElement('span');el.className='sp-activity';target.append(el)}
     el.dataset.spClock=String(t.id);
   }
+  const hashKey = input => [...String(input||'0')].reduce((n,ch)=>((n*33)+ch.charCodeAt(0))>>>0,5381);
+  function ensureTodayBackdrop(node,t,hex){
+    if(S.tab!=='today'||!node.classList.contains('rw')||!t)return;
+    node.classList.add('sp-decorated-today');
+    node.style.setProperty('--sp-bg-accent',hex||'#cbbbe9');
+    let mark=node.querySelector(':scope > .sp-task-watermark');
+    if(!mark){
+      mark=document.createElement('i');
+      mark.className='sp-task-watermark';
+      mark.setAttribute('aria-hidden','true');
+      node.append(mark);
+    }
+    const chosen=TODAY_BG_ICONS[hashKey(t.id||t.title)%TODAY_BG_ICONS.length];
+    mark.className='bi bi-'+chosen+' sp-task-watermark';
+  }
   function decorateAppearance(node,t,titleTarget){
     if(!node||!t)return;
     const appearance=styleFor(t.id),hex=PALETTE_MAP.get(appearance.color);
     if(hex){node.classList.add('sp-custom-task');node.style.setProperty('--sp-task-accent',hex)}
+    ensureTodayBackdrop(node,t,hex);
     if(appearance.priority){
       node.classList.add('sp-priority-task');
       if(titleTarget&&!titleTarget.querySelector('.sp-priority-mark')){
